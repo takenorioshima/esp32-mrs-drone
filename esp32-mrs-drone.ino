@@ -62,8 +62,8 @@ void setup(){
   presetButton.begin();
 
   // MIDI
-  BLEMIDI.setHandleConnected(OnConnected);
-  BLEMIDI.setHandleDisconnected(OnDisconnected);
+  BLEMIDI.setHandleConnected(handleBLEMIDIConnected);
+  BLEMIDI.setHandleDisconnected(handleBLEMIDIOnDisonnected);
   MIDI.begin();
 
   // OLED
@@ -134,11 +134,11 @@ void drawStatusScreen() {
   display.display();
 }
 
-void OnConnected() {
+void handleBLEMIDIConnected() {
   // TODO: Light up blue LED.
 }
 
-void OnDisconnected() {
+void handleBLEMIDIOnDisonnected() {
   // TODO: Unlight blue LED.
 }
    
