@@ -1,4 +1,3 @@
-
 // Arduino BLE-MIDI - Ref: https://github.com/lathoub/Arduino-BLE-MIDI
 #include <BLEMIDI_Transport.h>
 #include <hardware/BLEMIDI_ESP32_NimBLE.h>
@@ -9,24 +8,26 @@
 
 #include <JC_Button.h>  // Ref: https://github.com/JChristensen/JC_Button
 
+#define NOTES_PER_CHORD 4
+
 // Preset settings.
 struct ChordPreset {
   const char* name;
-  const int (*chords)[4];
+  const int (*chords)[NOTES_PER_CHORD];
   int length;
 };
 
 #define CHORD_LENGTH(arr) (sizeof(arr) / sizeof(arr[0]))
 
 // Preset 1
-const int chords1[][4] = {
+const int chords1[][NOTES_PER_CHORD] = {
   { 60, 64, 67, 71 },  // CM7
   { 53, 57, 60, 64 }   // FM7
 };
 ChordPreset preset1 = { "IM7 > IVM7", chords1, CHORD_LENGTH(chords1) };
 
 // Preset 2
-const int chords2[][4] = {
+const int chords2[][NOTES_PER_CHORD] = {
   { 62, 64, 69, -1 },
   { 55, 62, 69, -1 },
   { 60, 67, 71, -1 }
@@ -34,7 +35,7 @@ const int chords2[][4] = {
 ChordPreset preset2 = { "IIm7 > V7 > IM7", chords2, CHORD_LENGTH(chords2) };
 
 // Preset 3
-const int chords3[][4] = {
+const int chords3[][NOTES_PER_CHORD] = {
   { 60, 67, 74, -1 },
   { 58, 65, 72, -1 }
 };
@@ -76,12 +77,12 @@ int currentChordIndex = 0;
 void drawStatusScreen(const int* activeNotes = nullptr, int notesLength = 0) {
   display.clear();
 
-  // Display current preset.
+  // Display current preset name
   display.setFont(ArialMT_Plain_10);
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.drawString(64, 0, presets[currentPreset].name);
 
-  // キーボードGUIの描画（引数がnullなら何もアクティブでない鍵盤）
+  // Draw keyboard GUI (if activeNotes is nullptr, no keys highlighted)
   drawKeyboard(activeNotes, notesLength);
 
   display.display();
@@ -96,7 +97,7 @@ void drawKeyboard(const int* activeNotes, int notesLength) {
 
   int rootKey = (notesLength > 0) ? (activeNotes[0] % 12) : -1;
 
-  // Draw C D E F G A B.
+  // White keys: C D E F G A B
   const int whiteNotes[] = { 0, 2, 4, 5, 7, 9, 11 };
   for (int i = 0; i < 7; i++) {
     int noteKey = whiteNotes[i];
@@ -117,7 +118,7 @@ void drawKeyboard(const int* activeNotes, int notesLength) {
     drawKey(x, baseY, radius, isActive, isRoot);
   }
 
-  // Draw Db, Eb, Gb, Ab, Bb.
+  // Black keys: Db, Eb, Gb, Ab, Bb
   const int blackNotes[] = { 1, 3, 6, 8, 10 };
   const int blackKeyXOffsets[] = { 1, 2, 4, 5, 6 };
 
@@ -142,7 +143,7 @@ void drawKeyboard(const int* activeNotes, int notesLength) {
   }
 }
 
-// Draw key.
+// Draw individual key.
 void drawKey(int x, int y, int radius, bool isActive, bool isRoot) {
   if (isActive) {
     display.fillCircle(x, y, radius);
@@ -195,18 +196,21 @@ void loop() {
 
     int notesLength = 0;
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < NOTES_PER_CHORD; i++) {
       int note = chord[i];
-      if (chord[i] == -1) continue;
+      if (note == -1) continue;
       MIDI.sendNoteOn(note, 127, MIDI_CH);
       notesLength++;
     }
-    for (int i = 0; i < 4; i++) {
+
+    // Debug output
+    for (int i = 0; i < NOTES_PER_CHORD; i++) {
       Serial.print("chord[");
       Serial.print(i);
       Serial.print("] = ");
       Serial.println(chord[i]);
     }
+
     drawStatusScreen(chord, notesLength);
   }
 
@@ -214,16 +218,18 @@ void loop() {
     Serial.println("Footswitch: Released");
     ChordPreset& preset = presets[currentPreset];
     const int* chord = preset.chords[currentChordIndex];
-    // Send Note off
-    for (int i = 0; i < 4; i++) {
+
+    for (int i = 0; i < NOTES_PER_CHORD; i++) {
       int note = chord[i];
-      if (chord[i] == -1) continue;
+      if (note == -1) continue;
       MIDI.sendNoteOff(note, 0, MIDI_CH);
     }
+
     // Step to next chord.
     currentChordIndex = (currentChordIndex + 1) % preset.length;
 
-    // TODO: drawStatusScreen();
+    // Optionally update display here
+    // drawStatusScreen();
   }
 
   // Change presets.
