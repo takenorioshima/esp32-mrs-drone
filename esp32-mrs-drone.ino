@@ -9,30 +9,42 @@
 
 #include <JC_Button.h> // Ref: https://github.com/JChristensen/JC_Button
 
-// Struct for preset.
+// Preset settings. 
 struct ChordPreset {
   const char* name;
   const int (*chords)[4];
   int length;
 };
 
-// Preset 1 : IM7 > IVM7
-const int preset1[][4] = {
-  {60, 64, 67, 71}, // CM7
-  {65, 69, 72, 76}  // FM7
-};
+#define CHORD_LENGTH(arr) (sizeof(arr) / sizeof(arr[0]))
 
-// Preset 2 : IIm7 > V7 > IM7
-const int preset2[][4] = {
-  {62, 65, 67, 72}, // Dm7
-  {67, 71, 74, 77}, // V7(G7)
-  {60, 64, 67, 71} // CM7
+// Preset 1
+const int chords1[][4] = {
+  { 60, 64, 67, 71 },  // CM7
+  { 53, 57, 60, 64 }   // FM7
 };
+ChordPreset preset1 = { "IM7 > IVM7", chords1, CHORD_LENGTH(chords1) };
 
-// Preset list.
+// Preset 2
+const int chords2[][4] = {
+  { 62, 64, 69, -1 },
+  { 55, 62, 69, -1 },
+  { 60, 67, 71, -1 }
+};
+ChordPreset preset2 = { "IIm7 > V7 > IM7", chords2, CHORD_LENGTH(chords2) };
+
+// Preset 3
+const int chords3[][4] = {
+  { 60, 67, 74, -1 },
+  { 58, 65, 72, -1 }
+};
+ChordPreset preset3 = { "Isus2 > bVIIsus2", chords3, CHORD_LENGTH(chords3) };
+
+// Preset list
 ChordPreset presets[] = {
-  {"IM7 > IVM7", preset1, 2},
-  {"IIm7 > V7 > IM7", preset2, 3}
+  preset1,
+  preset2,
+  preset3
 };
 
 // Pin Definitions.
@@ -47,6 +59,11 @@ Button presetButton(PIN_PRESET_BUTTON, 50);
 
 // OLED.
 SSD1306Wire display(0x3C, SDA, SCL);
+
+const char* noteNames[12] = {
+  "C", "Db", "D", "Eb", "E", "F",
+  "Gb", "G", "Ab", "A", "Bb", "B"
+};
 
 // MIDI.
 const int MIDI_CH = 1;
