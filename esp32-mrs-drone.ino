@@ -9,6 +9,7 @@
 #include <JC_Button.h>  // Ref: https://github.com/JChristensen/JC_Button
 
 #define NOTES_PER_CHORD 4
+const int EMPTY_CHORD[NOTES_PER_CHORD] = { -1, -1, -1, -1 };
 
 // Preset settings.
 struct ChordPreset {
@@ -74,7 +75,7 @@ BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
 int currentPreset = 0;
 int currentChordIndex = 0;
 
-void drawStatusScreen(const int* activeNotes = nullptr, int notesLength = 0) {
+void drawStatusScreen(const int* activeNotes = EMPTY_CHORD) {
   display.clear();
 
   // Display current preset name
@@ -82,20 +83,26 @@ void drawStatusScreen(const int* activeNotes = nullptr, int notesLength = 0) {
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.drawString(64, 0, presets[currentPreset].name);
 
-  // Draw keyboard GUI (if activeNotes is nullptr, no keys highlighted)
-  drawKeyboard(activeNotes, notesLength);
+  // Draw keyboard GUI
+  drawKeyboard(activeNotes);
 
   display.display();
 }
 
-// OLED - Draw keyboard.
-void drawKeyboard(const int* activeNotes, int notesLength) {
+void drawKeyboard(const int activeNotes[NOTES_PER_CHORD]) {
   const int baseX = 16;
   const int baseY = 40;
   const int radius = 8;
   const int whiteKeySpacing = 16;
 
-  int rootKey = (notesLength > 0) ? (activeNotes[0] % 12) : -1;
+  // Set Root key
+  int rootKey = -1;
+  for (int i = 0; i < NOTES_PER_CHORD; i++) {
+    if (activeNotes[i] != -1) {
+      rootKey = activeNotes[i] % 12;
+      break;
+    }
+  }
 
   // White keys: C D E F G A B
   const int whiteNotes[] = { 0, 2, 4, 5, 7, 9, 11 };
@@ -106,12 +113,11 @@ void drawKeyboard(const int* activeNotes, int notesLength) {
     bool isActive = false;
     bool isRoot = false;
 
-    for (int j = 0; j < notesLength; j++) {
+    for (int j = 0; j < NOTES_PER_CHORD; j++) {
+      if (activeNotes[j] == -1) continue;
       if ((activeNotes[j] % 12) == noteKey) {
         isActive = true;
-        if (noteKey == rootKey) {
-          isRoot = true;
-        }
+        if (noteKey == rootKey) isRoot = true;
       }
     }
 
@@ -130,12 +136,11 @@ void drawKeyboard(const int* activeNotes, int notesLength) {
     bool isActive = false;
     bool isRoot = false;
 
-    for (int j = 0; j < notesLength; j++) {
+    for (int j = 0; j < NOTES_PER_CHORD; j++) {
+      if (activeNotes[j] == -1) continue;
       if ((activeNotes[j] % 12) == noteKey) {
         isActive = true;
-        if (noteKey == rootKey) {
-          isRoot = true;
-        }
+        if (noteKey == rootKey) isRoot = true;
       }
     }
 
@@ -194,13 +199,10 @@ void loop() {
     ChordPreset& preset = presets[currentPreset];
     const int* chord = preset.chords[currentChordIndex];
 
-    int notesLength = 0;
-
     for (int i = 0; i < NOTES_PER_CHORD; i++) {
       int note = chord[i];
       if (note == -1) continue;
       MIDI.sendNoteOn(note, 127, MIDI_CH);
-      notesLength++;
     }
 
     // Debug output
@@ -211,7 +213,7 @@ void loop() {
       Serial.println(chord[i]);
     }
 
-    drawStatusScreen(chord, notesLength);
+    drawStatusScreen(chord);
   }
 
   if (footSwitch.wasReleased()) {
