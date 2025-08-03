@@ -7,9 +7,9 @@
 #include <Wire.h>
 #include "SSD1306Wire.h"
 
-#include <JC_Button.h> // Ref: https://github.com/JChristensen/JC_Button
+#include <JC_Button.h>  // Ref: https://github.com/JChristensen/JC_Button
 
-// Preset settings. 
+// Preset settings.
 struct ChordPreset {
   const char* name;
   const int (*chords)[4];
@@ -73,7 +73,98 @@ BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
 int currentPreset = 0;
 int currentChordIndex = 0;
 
-void setup(){
+void drawStatusScreen(const int* activeNotes = nullptr, int notesLength = 0) {
+  display.clear();
+
+  // Display current preset.
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.drawString(64, 0, presets[currentPreset].name);
+
+  // キーボードGUIの描画（引数がnullなら何もアクティブでない鍵盤）
+  drawKeyboard(activeNotes, notesLength);
+
+  display.display();
+}
+
+// OLED - Draw keyboard.
+void drawKeyboard(const int* activeNotes, int notesLength) {
+  const int baseX = 16;
+  const int baseY = 40;
+  const int radius = 8;
+  const int whiteKeySpacing = 16;
+
+  int rootKey = (notesLength > 0) ? (activeNotes[0] % 12) : -1;
+
+  // Draw C D E F G A B.
+  const int whiteNotes[] = { 0, 2, 4, 5, 7, 9, 11 };
+  for (int i = 0; i < 7; i++) {
+    int noteKey = whiteNotes[i];
+    int x = baseX + i * whiteKeySpacing;
+
+    bool isActive = false;
+    bool isRoot = false;
+
+    for (int j = 0; j < notesLength; j++) {
+      if ((activeNotes[j] % 12) == noteKey) {
+        isActive = true;
+        if (noteKey == rootKey) {
+          isRoot = true;
+        }
+      }
+    }
+
+    drawKey(x, baseY, radius, isActive, isRoot);
+  }
+
+  // Draw Db, Eb, Gb, Ab, Bb.
+  const int blackNotes[] = { 1, 3, 6, 8, 10 };
+  const int blackKeyXOffsets[] = { 1, 2, 4, 5, 6 };
+
+  for (int i = 0; i < 5; i++) {
+    int noteKey = blackNotes[i];
+    int x = baseX + blackKeyXOffsets[i] * whiteKeySpacing - 8;
+    int y = baseY - 14;
+
+    bool isActive = false;
+    bool isRoot = false;
+
+    for (int j = 0; j < notesLength; j++) {
+      if ((activeNotes[j] % 12) == noteKey) {
+        isActive = true;
+        if (noteKey == rootKey) {
+          isRoot = true;
+        }
+      }
+    }
+
+    drawKey(x, y, radius, isActive, isRoot);
+  }
+}
+
+// Draw key.
+void drawKey(int x, int y, int radius, bool isActive, bool isRoot) {
+  if (isActive) {
+    display.fillCircle(x, y, radius);
+    if (isRoot) {
+      display.setColor(BLACK);
+      display.fillCircle(x, y, radius / 2);
+      display.setColor(WHITE);
+    }
+  } else {
+    display.drawCircle(x, y, radius);
+  }
+}
+
+void handleBLEMIDIConnected() {
+  // TODO: Light up blue LED.
+}
+
+void handleBLEMIDIOnDisonnected() {
+  // TODO: Unlight blue LED.
+}
+
+void setup() {
   // Buttons and switches.
   footSwitch.begin();
   presetButton.begin();
@@ -94,7 +185,7 @@ void setup(){
   Serial.begin(9600);
 }
 
-void loop(){
+void loop() {
   // Foot switch.
   footSwitch.read();
   if (footSwitch.wasPressed()) {
@@ -102,21 +193,31 @@ void loop(){
     ChordPreset& preset = presets[currentPreset];
     const int* chord = preset.chords[currentChordIndex];
 
+    int notesLength = 0;
+
     for (int i = 0; i < 4; i++) {
       int note = chord[i];
+      if (chord[i] == -1) continue;
       MIDI.sendNoteOn(note, 127, MIDI_CH);
+      notesLength++;
     }
-
-    // TODO: drawStatusScreen();
+    for (int i = 0; i < 4; i++) {
+      Serial.print("chord[");
+      Serial.print(i);
+      Serial.print("] = ");
+      Serial.println(chord[i]);
+    }
+    drawStatusScreen(chord, notesLength);
   }
 
-  if(footSwitch.wasReleased()){
+  if (footSwitch.wasReleased()) {
     Serial.println("Footswitch: Released");
     ChordPreset& preset = presets[currentPreset];
     const int* chord = preset.chords[currentChordIndex];
     // Send Note off
     for (int i = 0; i < 4; i++) {
       int note = chord[i];
+      if (chord[i] == -1) continue;
       MIDI.sendNoteOff(note, 0, MIDI_CH);
     }
     // Step to next chord.
@@ -133,29 +234,3 @@ void loop(){
     drawStatusScreen();
   }
 }
-
-void drawStatusScreen() {
-  display.clear();
-
-  // Display current preset.
-  display.setFont(ArialMT_Plain_10);
-  display.setTextAlignment(TEXT_ALIGN_CENTER);
-  display.drawString(64, 0, presets[currentPreset].name);
-  
-  // Display "MONO" "POLY" mode.
-  display.setFont(ArialMT_Plain_10);
-  String modeText = isMono ? "MONO" : "POLY";
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.drawString(0, 54, modeText);
-
-  display.display();
-}
-
-void handleBLEMIDIConnected() {
-  // TODO: Light up blue LED.
-}
-
-void handleBLEMIDIOnDisonnected() {
-  // TODO: Unlight blue LED.
-}
-   
