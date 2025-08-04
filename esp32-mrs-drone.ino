@@ -61,8 +61,11 @@ const int PIN_ENCODER_S2 = 18;
 // Buttons, switches and encoder.
 Button footSwitch(PIN_FOOTSWITCH, 50);
 Button presetButton(PIN_PRESET_BUTTON, 50);
+
 RotaryEncoder encoder(PIN_ENCODER_S1, PIN_ENCODER_S2, RotaryEncoder::LatchMode::TWO03);
 int encoderLastPos = encoder.getPosition();
+
+const unsigned long LONG_PRESS_THRESHOLD = 600;
 
 // OLED.
 SSD1306Wire display(0x3C, SDA, SCL);
@@ -82,6 +85,10 @@ int currentChordIndex = 0;
 int transpose = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
+
+bool isFootSwitchPressed = false;
+bool isFootSwitchHold = false;
+unsigned long footSwitchPressedAt = 0;
 
 void drawKeyboard() {
   // Debug output
@@ -233,7 +240,9 @@ void loop() {
   // Foot switch.
   footSwitch.read();
   if (footSwitch.wasPressed()) {
-    Serial.println("Footswitch: pressed");
+    isFootSwitchPressed = true;
+    footSwitchPressedAt = millis();
+    Serial.println("Footswitch: Pressed");
     ChordPreset& preset = presets[currentPreset];
     const int* chord = preset.chords[currentChordIndex];
 
@@ -250,8 +259,20 @@ void loop() {
     drawStatusScreen();
   }
 
+  if (!isFootSwitchHold && isFootSwitchPressed && (millis() - footSwitchPressedAt > LONG_PRESS_THRESHOLD)) {
+    isFootSwitchHold = true;
+    Serial.println("Footswitch: Hold");
+  }
+
   if (footSwitch.wasReleased()) {
-    Serial.println("Footswitch: Released");
+    if (isFootSwitchHold) {
+      Serial.println("Footswitch: Hold Released");
+      isFootSwitchHold = false;
+      isFootSwitchPressed = false;
+    } else {
+      Serial.println("Footswitch: Released");
+      isFootSwitchPressed = false;
+    }
 
     for (int i = 0; i < activeNoteCount; i++) {
       MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
