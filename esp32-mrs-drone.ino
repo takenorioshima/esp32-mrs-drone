@@ -81,6 +81,8 @@ BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
 int currentPreset = 0;
 int currentChordIndex = 0;
 int transpose = 0;
+int activeNotes[NOTES_PER_CHORD];
+int activeNoteCount = 0;
 
 void drawStatusScreen(const int* activeNotes = EMPTY_CHORD) {
   display.clear();
@@ -92,6 +94,11 @@ void drawStatusScreen(const int* activeNotes = EMPTY_CHORD) {
 
   // Draw keyboard GUI
   drawKeyboard(activeNotes);
+
+  // Display current transpose
+  String transposeText = (transpose > 0 ? "+" : "") + String(transpose);
+  display.setTextAlignment(TEXT_ALIGN_RIGHT);
+  display.drawString(128, 54, transposeText);
 
   display.display();
 }
@@ -211,6 +218,7 @@ void loop() {
 
     Serial.print("Transpose: ");
     Serial.println(transpose);
+    drawStatusScreen();
   }
 
   // Foot switch.
@@ -220,10 +228,14 @@ void loop() {
     ChordPreset& preset = presets[currentPreset];
     const int* chord = preset.chords[currentChordIndex];
 
+    activeNoteCount = 0;
+
     for (int i = 0; i < NOTES_PER_CHORD; i++) {
       int note = chord[i];
       if (note == -1) continue;
+      note += transpose;
       MIDI.sendNoteOn(note, 127, MIDI_CH);
+      activeNotes[activeNoteCount++] = note;
     }
 
     // Debug output
@@ -239,16 +251,13 @@ void loop() {
 
   if (footSwitch.wasReleased()) {
     Serial.println("Footswitch: Released");
-    ChordPreset& preset = presets[currentPreset];
-    const int* chord = preset.chords[currentChordIndex];
 
-    for (int i = 0; i < NOTES_PER_CHORD; i++) {
-      int note = chord[i];
-      if (note == -1) continue;
-      MIDI.sendNoteOff(note, 0, MIDI_CH);
+    for (int i = 0; i < activeNoteCount; i++) {
+      MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
     }
 
     // Step to next chord.
+    ChordPreset& preset = presets[currentPreset];
     currentChordIndex = (currentChordIndex + 1) % preset.length;
 
     // Optionally update display here
