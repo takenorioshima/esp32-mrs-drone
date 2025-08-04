@@ -11,7 +11,6 @@
 #include <RotaryEncoder.h>  // Ref: https://github.com/mathertel/RotaryEncoder
 
 #define NOTES_PER_CHORD 4
-const int EMPTY_CHORD[NOTES_PER_CHORD] = { -1, -1, -1, -1 };
 
 // Preset settings.
 struct ChordPreset {
@@ -257,6 +256,12 @@ void loop() {
     for (int i = 0; i < activeNoteCount; i++) {
       MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
     }
+
+    // Reset activeNotes to clear keyboard display
+    for (int i = 0; i < NOTES_PER_CHORD; i++) {
+      activeNotes[i] = -1;
+    }
+    activeNoteCount = 0;
 
     // Step to next chord.
     ChordPreset& preset = presets[currentPreset];
