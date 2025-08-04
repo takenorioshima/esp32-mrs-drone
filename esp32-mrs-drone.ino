@@ -8,6 +8,8 @@
 
 #include <JC_Button.h>  // Ref: https://github.com/JChristensen/JC_Button
 
+#include <RotaryEncoder.h>  // Ref: https://github.com/mathertel/RotaryEncoder
+
 #define NOTES_PER_CHORD 4
 const int EMPTY_CHORD[NOTES_PER_CHORD] = { -1, -1, -1, -1 };
 
@@ -54,10 +56,14 @@ ChordPreset presets[] = {
 // 4, 5, 13, 14, 16, 17, 25, 26, 27, 32, 33
 const int PIN_FOOTSWITCH = 5;
 const int PIN_PRESET_BUTTON = 4;
+const int PIN_ENCODER_S1 = 19;
+const int PIN_ENCODER_S2 = 18;
 
-// Buttons and switches.
+// Buttons, switches and encoder.
 Button footSwitch(PIN_FOOTSWITCH, 50);
 Button presetButton(PIN_PRESET_BUTTON, 50);
+RotaryEncoder encoder(PIN_ENCODER_S1, PIN_ENCODER_S2, RotaryEncoder::LatchMode::TWO03);
+int encoderLastPos = encoder.getPosition();
 
 // OLED.
 SSD1306Wire display(0x3C, SDA, SCL);
@@ -74,6 +80,7 @@ BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
 // States.
 int currentPreset = 0;
 int currentChordIndex = 0;
+int transpose = 0;
 
 void drawStatusScreen(const int* activeNotes = EMPTY_CHORD) {
   display.clear();
@@ -171,9 +178,10 @@ void handleBLEMIDIOnDisonnected() {
 }
 
 void setup() {
-  // Buttons and switches.
+  // Buttons, switches and encoder.
   footSwitch.begin();
   presetButton.begin();
+  encoder.setPosition(0);
 
   // MIDI
   BLEMIDI.setHandleConnected(handleBLEMIDIConnected);
@@ -192,6 +200,19 @@ void setup() {
 }
 
 void loop() {
+  // Encoder.
+  encoder.tick();
+  int encoderNewPos = encoder.getPosition() * 0.5;
+  if (encoderNewPos != encoderLastPos) {
+    int delta = encoderNewPos - encoderLastPos;
+    transpose += delta;
+    transpose = constrain(transpose, -12, 12);
+    encoderLastPos = encoderNewPos;
+
+    Serial.print("Transpose: ");
+    Serial.println(transpose);
+  }
+
   // Foot switch.
   footSwitch.read();
   if (footSwitch.wasPressed()) {
@@ -231,7 +252,7 @@ void loop() {
     currentChordIndex = (currentChordIndex + 1) % preset.length;
 
     // Optionally update display here
-    // drawStatusScreen();
+    drawStatusScreen();
   }
 
   // Change presets.
