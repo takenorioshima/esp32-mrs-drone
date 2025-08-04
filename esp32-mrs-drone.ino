@@ -66,6 +66,7 @@ RotaryEncoder encoder(PIN_ENCODER_S1, PIN_ENCODER_S2, RotaryEncoder::LatchMode::
 int encoderLastPos = encoder.getPosition();
 
 const unsigned long LONG_PRESS_THRESHOLD = 600;
+const unsigned long DOUBLE_TAP_THRESHOLD = 300;
 
 // OLED.
 SSD1306Wire display(0x3C, SDA, SCL);
@@ -80,24 +81,36 @@ const int MIDI_CH = 1;
 BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
 
 // States.
+enum PlayMode {
+  NONE,
+  MOMENTARY,
+  HOLD
+};
+PlayMode playMode = HOLD;
+
 int currentPreset = 0;
 int currentChordIndex = 0;
 int transpose = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
 
-bool isFootSwitchPressed = false;
-bool isFootSwitchHold = false;
+bool isNotePlaying = false;
+bool isHoldNoteActive = false;
+bool isSkipNextRelease = false;
 unsigned long footSwitchPressedAt = 0;
+unsigned long lastFootSwitchPressedTime = 0;
+
+unsigned long lastPressTime = 0;
+const unsigned long DOUBLE_CLICK_THRESHOLD = 400;  // ms
 
 void drawKeyboard() {
   // Debug output
-  for (int i = 0; i < NOTES_PER_CHORD; i++) {
-    Serial.print("activeNotes[");
-    Serial.print(i);
-    Serial.print("] = ");
-    Serial.println(activeNotes[i]);
-  }
+  // for (int i = 0; i < NOTES_PER_CHORD; i++) {
+  //   Serial.print("activeNotes[");
+  //   Serial.print(i);
+  //   Serial.print("] = ");
+  //   Serial.println(activeNotes[i]);
+  // }
 
   const int baseX = 16;
   const int baseY = 40;
@@ -240,56 +253,147 @@ void loop() {
   // Foot switch.
   footSwitch.read();
   if (footSwitch.wasPressed()) {
-    isFootSwitchPressed = true;
-    footSwitchPressedAt = millis();
-    Serial.println("Footswitch: Pressed");
-    ChordPreset& preset = presets[currentPreset];
-    const int* chord = preset.chords[currentChordIndex];
+    unsigned long now = millis();
 
-    activeNoteCount = 0;
+    if (playMode == HOLD) {
+      if (now - footSwitchPressedAt < DOUBLE_TAP_THRESHOLD) {
+        isNotePlaying = false;
+        isHoldNoteActive = false;
+        isSkipNextRelease = true;
+        playMode = NONE;
+        Serial.println("HOLD: SEND NOTE OFF(STOP)");
 
-    for (int i = 0; i < NOTES_PER_CHORD; i++) {
-      int note = chord[i];
-      if (note == -1) continue;
-      note += transpose;
-      MIDI.sendNoteOn(note, 127, MIDI_CH);
-      activeNotes[activeNoteCount++] = note;
+        for (int i = 0; i < activeNoteCount; i++) {
+          MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
+        }
+
+        // Reset activeNotes to clear keyboard display
+        for (int i = 0; i < NOTES_PER_CHORD; i++) {
+          activeNotes[i] = -1;
+        }
+        activeNoteCount = 0;
+
+        // Step to next chord.
+        ChordPreset& preset = presets[currentPreset];
+        currentChordIndex = (currentChordIndex + 1) % preset.length;
+
+        // Optionally update display here
+        drawStatusScreen();
+        return;
+      }
+    } else {
+      playMode = MOMENTARY;
+      Serial.println("MOMENTARY: SEND NOTE ON");
+
+      ChordPreset& preset = presets[currentPreset];
+      const int* chord = preset.chords[currentChordIndex];
+
+      activeNoteCount = 0;
+
+      for (int i = 0; i < NOTES_PER_CHORD; i++) {
+        int note = chord[i];
+        if (note == -1) continue;
+        note += transpose;
+        MIDI.sendNoteOn(note, 127, MIDI_CH);
+        activeNotes[activeNoteCount++] = note;
+      }
+
+      drawStatusScreen();
+      isNotePlaying = true;
     }
 
-    drawStatusScreen();
-  }
-
-  if (!isFootSwitchHold && isFootSwitchPressed && (millis() - footSwitchPressedAt > LONG_PRESS_THRESHOLD)) {
-    isFootSwitchHold = true;
-    Serial.println("Footswitch: Hold");
+    footSwitchPressedAt = now;
   }
 
   if (footSwitch.wasReleased()) {
-    if (isFootSwitchHold) {
-      Serial.println("Footswitch: Hold Released");
-      isFootSwitchHold = false;
-      isFootSwitchPressed = false;
+    if (isSkipNextRelease) {
+      isSkipNextRelease = false;
+      Serial.println("Release skipped due to double tap.");
+      return;
+    }
+
+    if (millis() - footSwitchPressedAt < LONG_PRESS_THRESHOLD) {
+
+      playMode = HOLD;
+
+      // Cancel note on for MOMENTARY.
+      if (isNotePlaying) {
+        Serial.println("CANCEL: SEND NOTE OFF");
+        isNotePlaying = false;
+      }
+
+      if (isHoldNoteActive) {
+        for (int i = 0; i < activeNoteCount; i++) {
+          MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
+        }
+
+        // Reset activeNotes to clear keyboard display
+        for (int i = 0; i < NOTES_PER_CHORD; i++) {
+          activeNotes[i] = -1;
+        }
+        activeNoteCount = 0;
+
+        // Step to next chord.
+        ChordPreset& preset = presets[currentPreset];
+        currentChordIndex = (currentChordIndex + 1) % preset.length;
+
+        const int* chord = preset.chords[currentChordIndex];
+
+        activeNoteCount = 0;
+
+        for (int i = 0; i < NOTES_PER_CHORD; i++) {
+          int note = chord[i];
+          if (note == -1) continue;
+          note += transpose;
+          MIDI.sendNoteOn(note, 127, MIDI_CH);
+          activeNotes[activeNoteCount++] = note;
+        }
+
+        drawStatusScreen();
+      } else {
+        Serial.println("HOLD: SEND NOTE ON(START)");
+        ChordPreset& preset = presets[currentPreset];
+        const int* chord = preset.chords[currentChordIndex];
+
+        activeNoteCount = 0;
+
+        for (int i = 0; i < NOTES_PER_CHORD; i++) {
+          int note = chord[i];
+          if (note == -1) continue;
+          note += transpose;
+          MIDI.sendNoteOn(note, 127, MIDI_CH);
+          activeNotes[activeNoteCount++] = note;
+        }
+
+        drawStatusScreen();
+      }
+      isHoldNoteActive = true;
+
     } else {
-      Serial.println("Footswitch: Released");
-      isFootSwitchPressed = false;
+      if (playMode == MOMENTARY && isNotePlaying) {
+        Serial.println("MOMENTARY: SEND NOTE OFF");
+
+        for (int i = 0; i < activeNoteCount; i++) {
+          MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
+        }
+
+        // Reset activeNotes to clear keyboard display
+        for (int i = 0; i < NOTES_PER_CHORD; i++) {
+          activeNotes[i] = -1;
+        }
+        activeNoteCount = 0;
+
+        // Step to next chord.
+        ChordPreset& preset = presets[currentPreset];
+        currentChordIndex = (currentChordIndex + 1) % preset.length;
+
+        // Optionally update display here
+        drawStatusScreen();
+
+        isNotePlaying = false;
+        playMode = NONE;
+      }
     }
-
-    for (int i = 0; i < activeNoteCount; i++) {
-      MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
-    }
-
-    // Reset activeNotes to clear keyboard display
-    for (int i = 0; i < NOTES_PER_CHORD; i++) {
-      activeNotes[i] = -1;
-    }
-    activeNoteCount = 0;
-
-    // Step to next chord.
-    ChordPreset& preset = presets[currentPreset];
-    currentChordIndex = (currentChordIndex + 1) % preset.length;
-
-    // Optionally update display here
-    drawStatusScreen();
   }
 
   // Change presets.
