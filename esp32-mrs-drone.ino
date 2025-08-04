@@ -203,7 +203,27 @@ void drawStatusScreen() {
   display.display();
 }
 
+void sendChordNoteOn(const int* chord) {
+  activeNoteCount = 0;
+  for (int i = 0; i < NOTES_PER_CHORD; i++) {
+    int note = chord[i];
+    if (note == -1) continue;
+    note += transpose;
+    MIDI.sendNoteOn(note, 127, MIDI_CH);
+    activeNotes[activeNoteCount++] = note;
+  }
+}
 
+void sendChordNoteOff() {
+  for (int i = 0; i < activeNoteCount; i++) {
+    MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
+  }
+  // Reset
+  for (int i = 0; i < NOTES_PER_CHORD; i++) {
+    activeNotes[i] = -1;
+  }
+  activeNoteCount = 0;
+}
 
 void handleBLEMIDIConnected() {
   // TODO: Light up blue LED.
@@ -262,16 +282,7 @@ void loop() {
         isSkipNextRelease = true;
         playMode = NONE;
         Serial.println("HOLD: SEND NOTE OFF(STOP)");
-
-        for (int i = 0; i < activeNoteCount; i++) {
-          MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
-        }
-
-        // Reset activeNotes to clear keyboard display
-        for (int i = 0; i < NOTES_PER_CHORD; i++) {
-          activeNotes[i] = -1;
-        }
-        activeNoteCount = 0;
+        sendChordNoteOff();
 
         // Step to next chord.
         ChordPreset& preset = presets[currentPreset];
@@ -287,16 +298,7 @@ void loop() {
 
       ChordPreset& preset = presets[currentPreset];
       const int* chord = preset.chords[currentChordIndex];
-
-      activeNoteCount = 0;
-
-      for (int i = 0; i < NOTES_PER_CHORD; i++) {
-        int note = chord[i];
-        if (note == -1) continue;
-        note += transpose;
-        MIDI.sendNoteOn(note, 127, MIDI_CH);
-        activeNotes[activeNoteCount++] = note;
-      }
+      sendChordNoteOn(chord);
 
       drawStatusScreen();
       isNotePlaying = true;
@@ -319,52 +321,26 @@ void loop() {
       // Cancel note on for MOMENTARY.
       if (isNotePlaying) {
         Serial.println("CANCEL: SEND NOTE OFF");
+        sendChordNoteOff();
         isNotePlaying = false;
       }
 
       if (isHoldNoteActive) {
-        for (int i = 0; i < activeNoteCount; i++) {
-          MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
-        }
-
-        // Reset activeNotes to clear keyboard display
-        for (int i = 0; i < NOTES_PER_CHORD; i++) {
-          activeNotes[i] = -1;
-        }
-        activeNoteCount = 0;
+        sendChordNoteOff();
 
         // Step to next chord.
         ChordPreset& preset = presets[currentPreset];
         currentChordIndex = (currentChordIndex + 1) % preset.length;
-
         const int* chord = preset.chords[currentChordIndex];
-
-        activeNoteCount = 0;
-
-        for (int i = 0; i < NOTES_PER_CHORD; i++) {
-          int note = chord[i];
-          if (note == -1) continue;
-          note += transpose;
-          MIDI.sendNoteOn(note, 127, MIDI_CH);
-          activeNotes[activeNoteCount++] = note;
-        }
+        sendChordNoteOn(chord);
 
         drawStatusScreen();
       } else {
         Serial.println("HOLD: SEND NOTE ON(START)");
         ChordPreset& preset = presets[currentPreset];
         const int* chord = preset.chords[currentChordIndex];
-
-        activeNoteCount = 0;
-
-        for (int i = 0; i < NOTES_PER_CHORD; i++) {
-          int note = chord[i];
-          if (note == -1) continue;
-          note += transpose;
-          MIDI.sendNoteOn(note, 127, MIDI_CH);
-          activeNotes[activeNoteCount++] = note;
-        }
-
+        sendChordNoteOn(chord);
+        
         drawStatusScreen();
       }
       isHoldNoteActive = true;
@@ -372,16 +348,7 @@ void loop() {
     } else {
       if (playMode == MOMENTARY && isNotePlaying) {
         Serial.println("MOMENTARY: SEND NOTE OFF");
-
-        for (int i = 0; i < activeNoteCount; i++) {
-          MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
-        }
-
-        // Reset activeNotes to clear keyboard display
-        for (int i = 0; i < NOTES_PER_CHORD; i++) {
-          activeNotes[i] = -1;
-        }
-        activeNoteCount = 0;
+        sendChordNoteOff();
 
         // Step to next chord.
         ChordPreset& preset = presets[currentPreset];
