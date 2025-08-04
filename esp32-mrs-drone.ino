@@ -84,26 +84,15 @@ int transpose = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
 
-void drawStatusScreen(const int* activeNotes = EMPTY_CHORD) {
-  display.clear();
+void drawKeyboard() {
+  // Debug output
+  for (int i = 0; i < NOTES_PER_CHORD; i++) {
+    Serial.print("activeNotes[");
+    Serial.print(i);
+    Serial.print("] = ");
+    Serial.println(activeNotes[i]);
+  }
 
-  // Display current preset name
-  display.setFont(ArialMT_Plain_10);
-  display.setTextAlignment(TEXT_ALIGN_CENTER);
-  display.drawString(64, 0, presets[currentPreset].name);
-
-  // Draw keyboard GUI
-  drawKeyboard(activeNotes);
-
-  // Display current transpose
-  String transposeText = (transpose > 0 ? "+" : "") + String(transpose);
-  display.setTextAlignment(TEXT_ALIGN_RIGHT);
-  display.drawString(128, 54, transposeText);
-
-  display.display();
-}
-
-void drawKeyboard(const int activeNotes[NOTES_PER_CHORD]) {
   const int baseX = 16;
   const int baseY = 40;
   const int radius = 8;
@@ -176,6 +165,27 @@ void drawKey(int x, int y, int radius, bool isActive, bool isRoot) {
   }
 }
 
+void drawStatusScreen() {
+  display.clear();
+
+  // Display current preset name
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.drawString(64, 0, presets[currentPreset].name);
+
+  // Draw keyboard GUI
+  drawKeyboard();
+
+  // Display current transpose
+  String transposeText = (transpose > 0 ? "+" : "") + String(transpose);
+  display.setTextAlignment(TEXT_ALIGN_RIGHT);
+  display.drawString(128, 54, transposeText);
+
+  display.display();
+}
+
+
+
 void handleBLEMIDIConnected() {
   // TODO: Light up blue LED.
 }
@@ -238,15 +248,7 @@ void loop() {
       activeNotes[activeNoteCount++] = note;
     }
 
-    // Debug output
-    for (int i = 0; i < NOTES_PER_CHORD; i++) {
-      Serial.print("chord[");
-      Serial.print(i);
-      Serial.print("] = ");
-      Serial.println(chord[i]);
-    }
-
-    drawStatusScreen(chord);
+    drawStatusScreen();
   }
 
   if (footSwitch.wasReleased()) {
