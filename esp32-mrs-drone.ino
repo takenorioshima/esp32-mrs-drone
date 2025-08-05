@@ -7,48 +7,9 @@
 #include "SSD1306Wire.h"
 
 #include <JC_Button.h>  // Ref: https://github.com/JChristensen/JC_Button
-
 #include <RotaryEncoder.h>  // Ref: https://github.com/mathertel/RotaryEncoder
 
-#define NOTES_PER_CHORD 4
-
-// Preset settings.
-struct ChordPreset {
-  const char* name;
-  const int (*chords)[NOTES_PER_CHORD];
-  int length;
-};
-
-#define CHORD_LENGTH(arr) (sizeof(arr) / sizeof(arr[0]))
-
-// Preset 1
-const int chords1[][NOTES_PER_CHORD] = {
-  { 60, 64, 67, 71 },  // CM7
-  { 53, 57, 60, 64 }   // FM7
-};
-ChordPreset preset1 = { "IM7 > IVM7", chords1, CHORD_LENGTH(chords1) };
-
-// Preset 2
-const int chords2[][NOTES_PER_CHORD] = {
-  { 62, 64, 69, -1 },
-  { 55, 62, 69, -1 },
-  { 60, 67, 71, -1 }
-};
-ChordPreset preset2 = { "IIm7 > V7 > IM7", chords2, CHORD_LENGTH(chords2) };
-
-// Preset 3
-const int chords3[][NOTES_PER_CHORD] = {
-  { 60, 67, 74, -1 },
-  { 58, 65, 72, -1 }
-};
-ChordPreset preset3 = { "Isus2 > bVIIsus2", chords3, CHORD_LENGTH(chords3) };
-
-// Preset list
-ChordPreset presets[] = {
-  preset1,
-  preset2,
-  preset3
-};
+#include "ChordPresets.h"
 
 // Pin Definitions.
 // Safe GPIO pins for switch/button input on ESP32:
@@ -71,11 +32,6 @@ const unsigned long DOUBLE_TAP_THRESHOLD = 300;
 // OLED.
 SSD1306Wire display(0x3C, SDA, SCL);
 
-const char* noteNames[12] = {
-  "C", "Db", "D", "Eb", "E", "F",
-  "Gb", "G", "Ab", "A", "Bb", "B"
-};
-
 // MIDI.
 const int MIDI_CH = 1;
 BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
@@ -94,8 +50,6 @@ int transpose = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
 
-bool isNotePlaying = false;
-bool isHoldNoteActive = false;
 bool isSkipNextRelease = false;
 unsigned long footSwitchPressedAt = 0;
 unsigned long lastFootSwitchPressedTime = 0;
@@ -277,31 +231,29 @@ void loop() {
 
     if (playMode == HOLD) {
       if (now - footSwitchPressedAt < DOUBLE_TAP_THRESHOLD) {
-        isNotePlaying = false;
-        isHoldNoteActive = false;
+        // Double tap: exit hold mode
         isSkipNextRelease = true;
         playMode = NONE;
-        Serial.println("HOLD: SEND NOTE OFF(STOP)");
+        Serial.println("MODE: HOLD OFF");
         sendChordNoteOff();
 
         // Step to next chord.
         ChordPreset& preset = presets[currentPreset];
         currentChordIndex = (currentChordIndex + 1) % preset.length;
 
-        // Optionally update display here
         drawStatusScreen();
         return;
       }
     } else {
+      // Start momentary mode
       playMode = MOMENTARY;
-      Serial.println("MOMENTARY: SEND NOTE ON");
+      Serial.println("MODE: MOMENTARY ON");
 
       ChordPreset& preset = presets[currentPreset];
       const int* chord = preset.chords[currentChordIndex];
       sendChordNoteOn(chord);
 
       drawStatusScreen();
-      isNotePlaying = true;
     }
 
     footSwitchPressedAt = now;
@@ -309,56 +261,57 @@ void loop() {
 
   if (footSwitch.wasReleased()) {
     if (isSkipNextRelease) {
+      // Ignore this release due to prior double tap
       isSkipNextRelease = false;
-      Serial.println("Release skipped due to double tap.");
+      Serial.println("RELEASE SKIPPED");
       return;
     }
 
     if (millis() - footSwitchPressedAt < LONG_PRESS_THRESHOLD) {
 
-      playMode = HOLD;
-
-      // Cancel note on for MOMENTARY.
-      if (isNotePlaying) {
-        Serial.println("CANCEL: SEND NOTE OFF");
+      // Short press: cancel momentary mode on
+      if (playMode == MOMENTARY) {
+        Serial.println("MODE: MOMENTARY CANCEL");
         sendChordNoteOff();
-        isNotePlaying = false;
       }
 
-      if (isHoldNoteActive) {
+      if(playMode == HOLD){
+        // Tap on hold mode
+        Serial.println("MODE: HOLD TAP");
         sendChordNoteOff();
 
         // Step to next chord.
         ChordPreset& preset = presets[currentPreset];
         currentChordIndex = (currentChordIndex + 1) % preset.length;
         const int* chord = preset.chords[currentChordIndex];
+        
         sendChordNoteOn(chord);
 
         drawStatusScreen();
       } else {
-        Serial.println("HOLD: SEND NOTE ON(START)");
+        // First tap to enter hold mode
+        Serial.println("MODE: HOLD ON");
         ChordPreset& preset = presets[currentPreset];
         const int* chord = preset.chords[currentChordIndex];
         sendChordNoteOn(chord);
         
         drawStatusScreen();
       }
-      isHoldNoteActive = true;
+
+      playMode = HOLD;
 
     } else {
-      if (playMode == MOMENTARY && isNotePlaying) {
-        Serial.println("MOMENTARY: SEND NOTE OFF");
+      if (playMode == MOMENTARY) {
+        // Long press release
+        Serial.println("MODE: MOMENTARY OFF");
         sendChordNoteOff();
+        playMode = NONE;
 
         // Step to next chord.
         ChordPreset& preset = presets[currentPreset];
         currentChordIndex = (currentChordIndex + 1) % preset.length;
 
-        // Optionally update display here
         drawStatusScreen();
-
-        isNotePlaying = false;
-        playMode = NONE;
       }
     }
   }
