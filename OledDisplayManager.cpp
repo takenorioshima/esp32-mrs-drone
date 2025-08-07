@@ -13,15 +13,22 @@ void OledDisplayManager::begin() {
   display.display();
 }
 
-void OledDisplayManager::updateDisplay(const char* presetName, const int* activeNotes, int noteCount, int transpose) {
+void OledDisplayManager::updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int transpose) {
   display.clear();
 
   display.setFont(ArialMT_Plain_10);
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.drawString(64, 0, presetName);
 
+  // Display keyboard
   drawKeyboard(activeNotes, noteCount);
 
+  // Display code index
+  String codeIndexText = String(currentChordIndex + 1) + " / " + String(numChords);
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.drawString(0, 54, codeIndexText);
+
+  // Display transpose
   String transposeText = (transpose > 0 ? "+" : "") + String(transpose);
   display.setTextAlignment(TEXT_ALIGN_RIGHT);
   display.drawString(128, 54, transposeText);

@@ -8,7 +8,7 @@ class OledDisplayManager {
 public:
   OledDisplayManager();
   void begin();
-  void updateDisplay(const char* presetName, const int* activeNotes, int noteCount, int transpose);
+  void updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int transpose);
 
 private:
   SSD1306Wire display;

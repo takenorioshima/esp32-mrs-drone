@@ -38,7 +38,7 @@ int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
 
 void drawStatusScreen() {
-  oled.updateDisplay(presets[currentPreset].name, activeNotes, activeNoteCount, transpose);
+  oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, transpose);
 }
 
 void sendChordNoteOn(const int* chord) {
