@@ -9,7 +9,7 @@ enum FootSwitchMode {
 
 class FootSwitchManager {
 public:
-  FootSwitchManager(int pin, unsigned long longPressMs = 600, unsigned long doubleTapMs = 300);
+  FootSwitchManager(int pin, unsigned long longPressMs = 200, unsigned long doubleTapMs = 300);
 
   void begin();
   void update();
@@ -26,7 +26,7 @@ public:
 
 private:
   Button button;
-  FootSwitchMode mode = MODE_NONE; // <- ここ!
+  FootSwitchMode mode = MODE_NONE;
   unsigned long lastPressedAt = 0;
   const unsigned long LONG_PRESS_THRESHOLD;
   const unsigned long DOUBLE_TAP_THRESHOLD;
