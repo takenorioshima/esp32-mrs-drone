@@ -141,8 +141,6 @@ void setup() {
   // OLED
   oled.begin();
   drawStatusScreen();
-
-  Serial.begin(9600);
 }
 
 void loop() {
@@ -169,5 +167,10 @@ void loop() {
     currentPreset = (currentPreset + 1) % (sizeof(presets) / sizeof(presets[0]));
     currentChordIndex = 0;
     drawStatusScreen();
+
+    // fix preset index when switching in hold mode
+    if(footSwitch.getMode() == MODE_HOLD){
+      currentChordIndex--;
+    }
   }
 }

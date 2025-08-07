@@ -23,8 +23,11 @@ void OledDisplayManager::updateDisplay(const char* presetName, int currentChordI
   // Display keyboard
   drawKeyboard(activeNotes, noteCount);
 
+  // fix preset index when switching in hold mode
+  int index = currentChordIndex < 0 ? 0 : currentChordIndex;
+
   // Display code index
-  String codeIndexText = String(currentChordIndex + 1) + " / " + String(numChords);
+  String codeIndexText = String(index + 1) + " / " + String(numChords);
   display.setTextAlignment(TEXT_ALIGN_LEFT);
   display.drawString(0, 54, codeIndexText);
 
