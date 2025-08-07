@@ -5,6 +5,7 @@
 #include <JC_Button.h>      // Ref: https://github.com/JChristensen/JC_Button
 #include <RotaryEncoder.h>  // Ref: https://github.com/mathertel/RotaryEncoder
 
+#include "FootSwitchManager.h"
 #include "OledDisplayManager.h"
 #include "ChordPresets.h"
 
@@ -17,14 +18,11 @@ const int PIN_ENCODER_S1 = 19;
 const int PIN_ENCODER_S2 = 18;
 
 // Buttons, switches and encoder.
-Button footSwitch(PIN_FOOTSWITCH, 50);
+FootSwitchManager footSwitch(PIN_FOOTSWITCH);
 Button presetButton(PIN_PRESET_BUTTON, 50);
 
 RotaryEncoder encoder(PIN_ENCODER_S1, PIN_ENCODER_S2, RotaryEncoder::LatchMode::TWO03);
 int encoderLastPos = encoder.getPosition();
-
-const unsigned long LONG_PRESS_THRESHOLD = 600;
-const unsigned long DOUBLE_TAP_THRESHOLD = 300;
 
 // OLED.
 OledDisplayManager oled;
@@ -33,23 +31,11 @@ OledDisplayManager oled;
 const int MIDI_CH = 1;
 BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
 
-// States.
-enum PlayMode {
-  NONE,
-  MOMENTARY,
-  HOLD
-};
-PlayMode playMode = HOLD;
-
 int currentPreset = 0;
 int currentChordIndex = 0;
 int transpose = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
-
-bool isSkipNextRelease = false;
-unsigned long footSwitchPressedAt = 0;
-unsigned long lastFootSwitchPressedTime = 0;
 
 void drawStatusScreen() {
   oled.updateDisplay(presets[currentPreset].name, activeNotes, activeNoteCount, transpose);
@@ -87,11 +73,65 @@ void handleBLEMIDIOnDisonnected() {
   // TODO: Unlight blue LED.
 }
 
+void handleHoldModeOn(){
+  Serial.println("MODE: HOLD ON");
+  ChordPreset& preset = presets[currentPreset];
+  const int* chord = preset.chords[currentChordIndex];
+  sendChordNoteOn(chord);
+}
+
+void handleMomentaryCancel(){
+  sendChordNoteOff();
+}
+
+void handleTapOnHold(){
+  Serial.println("MODE: HOLD TAP");
+  sendChordNoteOff();
+
+  // Step to next chord.
+  ChordPreset& preset = presets[currentPreset];
+  currentChordIndex = (currentChordIndex + 1) % preset.length;
+  const int* chord = preset.chords[currentChordIndex];
+
+  sendChordNoteOn(chord);
+}
+
+void handleHoldModeOff(){
+  Serial.println("MODE: HOLD OFF");
+  sendChordNoteOff();
+}
+
+void handleMomentaryOn(){
+  Serial.println("MODE: MOMENTARY ON");
+
+  ChordPreset& preset = presets[currentPreset];
+  const int* chord = preset.chords[currentChordIndex];
+  sendChordNoteOn(chord);
+}
+
+void handleMomentaryOff(){
+  Serial.println("MODE: MOMENTARY OFF");
+  sendChordNoteOff();
+
+  // Step to next chord.
+  ChordPreset& preset = presets[currentPreset];
+  currentChordIndex = (currentChordIndex + 1) % preset.length;
+}
+
 void setup() {
+  Serial.begin(9600);
+  
   // Buttons, switches and encoder.
-  footSwitch.begin();
   presetButton.begin();
   encoder.setPosition(0);
+
+  footSwitch.begin();
+  footSwitch.onEnterHoldCallback(handleHoldModeOn);
+  footSwitch.onHoldTapCallback(handleTapOnHold);
+  footSwitch.onExitHoldCallback(handleHoldModeOff);
+  footSwitch.onMomentaryStartCallback(handleMomentaryOn);
+  footSwitch.onMomentaryCancelCallback(handleMomentaryCancel);
+  footSwitch.onMomentaryEndCallback(handleMomentaryOff);
 
   // MIDI
   BLEMIDI.setHandleConnected(handleBLEMIDIConnected);
@@ -121,88 +161,8 @@ void loop() {
   }
 
   // Foot switch.
-  footSwitch.read();
-  if (footSwitch.wasPressed()) {
-    unsigned long now = millis();
-
-    if (playMode == HOLD) {
-      if (now - footSwitchPressedAt < DOUBLE_TAP_THRESHOLD) {
-        // Double tap: exit hold mode
-        isSkipNextRelease = true;
-        playMode = NONE;
-        Serial.println("MODE: HOLD OFF");
-        sendChordNoteOff();
-
-        // Step to next chord.
-        ChordPreset& preset = presets[currentPreset];
-        currentChordIndex = (currentChordIndex + 1) % preset.length;
-
-        return;
-      }
-    } else {
-      // Start momentary mode
-      playMode = MOMENTARY;
-      Serial.println("MODE: MOMENTARY ON");
-
-      ChordPreset& preset = presets[currentPreset];
-      const int* chord = preset.chords[currentChordIndex];
-      sendChordNoteOn(chord);
-    }
-
-    footSwitchPressedAt = now;
-  }
-
-  if (footSwitch.wasReleased()) {
-    if (isSkipNextRelease) {
-      // Ignore this release due to prior double tap
-      isSkipNextRelease = false;
-      Serial.println("RELEASE SKIPPED");
-      return;
-    }
-
-    if (millis() - footSwitchPressedAt < LONG_PRESS_THRESHOLD) {
-
-      // Short press: cancel momentary mode on
-      if (playMode == MOMENTARY) {
-        Serial.println("MODE: MOMENTARY CANCEL");
-        sendChordNoteOff();
-      }
-
-      if (playMode == HOLD) {
-        // Tap on hold mode
-        Serial.println("MODE: HOLD TAP");
-        sendChordNoteOff();
-
-        // Step to next chord.
-        ChordPreset& preset = presets[currentPreset];
-        currentChordIndex = (currentChordIndex + 1) % preset.length;
-        const int* chord = preset.chords[currentChordIndex];
-
-        sendChordNoteOn(chord);
-      } else {
-        // First tap to enter hold mode
-        Serial.println("MODE: HOLD ON");
-        ChordPreset& preset = presets[currentPreset];
-        const int* chord = preset.chords[currentChordIndex];
-        sendChordNoteOn(chord);
-      }
-
-      playMode = HOLD;
-
-    } else {
-      if (playMode == MOMENTARY) {
-        // Long press release
-        Serial.println("MODE: MOMENTARY OFF");
-        sendChordNoteOff();
-        playMode = NONE;
-
-        // Step to next chord.
-        ChordPreset& preset = presets[currentPreset];
-        currentChordIndex = (currentChordIndex + 1) % preset.length;
-      }
-    }
-  }
-
+  footSwitch.update();
+  
   // Change presets.
   presetButton.read();
   if (presetButton.wasPressed()) {
