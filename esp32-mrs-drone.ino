@@ -90,7 +90,7 @@ void handleTapOnHold(){
 
   // Step to next chord.
   ChordPreset& preset = presets[currentPreset];
-  currentChordIndex = (currentChordIndex + 1) % preset.length;
+  currentChordIndex = (currentChordIndex + 1) % preset.numChords;
   const int* chord = preset.chords[currentChordIndex];
 
   sendChordNoteOn(chord);
@@ -115,7 +115,7 @@ void handleMomentaryOff(){
 
   // Step to next chord.
   ChordPreset& preset = presets[currentPreset];
-  currentChordIndex = (currentChordIndex + 1) % preset.length;
+  currentChordIndex = (currentChordIndex + 1) % preset.numChords;
 }
 
 void setup() {
