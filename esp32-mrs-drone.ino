@@ -93,13 +93,6 @@ void handleBLEMIDIOnDisonnected() {
 
 void handleHoldModeOn() {
   Serial.println("MODE: HOLD ON");
-  ChordPreset& preset = presets[currentPreset];
-  const int* chord = preset.chords[currentChordIndex];
-  sendChordNoteOn(chord);
-}
-
-void handleMomentaryCancel() {
-  sendChordNoteOff();
 }
 
 void handleTapOnHold() {
@@ -116,11 +109,6 @@ void handleTapOnHold() {
   const int* chord = preset.chords[currentChordIndex];
 
   sendChordNoteOn(chord);
-}
-
-void handleHoldModeOff() {
-  Serial.println("MODE: HOLD OFF");
-  sendChordNoteOff();
 }
 
 void handleMomentaryOn() {
@@ -151,9 +139,8 @@ void setup() {
   footSwitch.begin();
   footSwitch.onEnterHoldCallback(handleHoldModeOn);
   footSwitch.onHoldTapCallback(handleTapOnHold);
-  footSwitch.onExitHoldCallback(handleHoldModeOff);
+  footSwitch.onExitHoldCallback(handleMomentaryOff);
   footSwitch.onMomentaryStartCallback(handleMomentaryOn);
-  footSwitch.onMomentaryCancelCallback(handleMomentaryCancel);
   footSwitch.onMomentaryEndCallback(handleMomentaryOff);
 
   // MIDI
