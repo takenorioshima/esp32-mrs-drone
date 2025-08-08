@@ -212,7 +212,7 @@ void loop() {
   }
 
   // Update display
-  if(stateChanged){
+  if (stateChanged) {
     drawStatusScreen();
     stateChanged = false;
   }
