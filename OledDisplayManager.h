@@ -8,6 +8,7 @@ class OledDisplayManager {
 public:
   OledDisplayManager();
   void begin();
+  void showSplashScreen();
   void updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int transpose, bool isRootOnlyMode);
 
 private:

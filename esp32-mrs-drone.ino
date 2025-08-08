@@ -150,6 +150,7 @@ void setup() {
 
   // OLED
   oled.begin();
+  oled.showSplashScreen();
   drawStatusScreen();
 }
 

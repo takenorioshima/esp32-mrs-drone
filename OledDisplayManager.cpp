@@ -7,11 +7,19 @@ OledDisplayManager::OledDisplayManager()
 void OledDisplayManager::begin() {
   display.init();
   display.flipScreenVertically();
-  display.setFont(ArialMT_Plain_16);
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.clear();
-  display.display();
 }
+
+void OledDisplayManager::showSplashScreen() {
+  display.clear();
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.drawString(64, 15, "Mrs. Drone");
+  display.drawString(64, 30, "v1.0.0");
+  display.drawString(64, 45, "Booting...");
+  display.display();
+  delay(3000);
+}
+
 
 void OledDisplayManager::updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int transpose, bool isRootOnlyMode) {
   display.clear();
