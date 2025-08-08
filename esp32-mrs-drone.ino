@@ -44,6 +44,8 @@ int activeNoteCount = 0;
 bool isRootOnlyMode = false;
 bool isPresetChanged = false;
 
+bool stateChanged = false;
+
 void drawStatusScreen() {
   oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, transpose, isRootOnlyMode);
 }
@@ -54,7 +56,7 @@ void sendChordNoteOn(const int* chord) {
     int note = chord[0] + transpose;
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[0] = note;
-    drawStatusScreen();
+    stateChanged = true;
     return;
   }
 
@@ -66,7 +68,7 @@ void sendChordNoteOn(const int* chord) {
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[activeNoteCount++] = note;
   }
-  drawStatusScreen();
+  stateChanged = true;
 }
 
 void sendChordNoteOff() {
@@ -78,7 +80,7 @@ void sendChordNoteOff() {
     activeNotes[i] = -1;
   }
   activeNoteCount = 0;
-  drawStatusScreen();
+  stateChanged = true;
 }
 
 void handleBLEMIDIConnected() {
@@ -89,54 +91,58 @@ void handleBLEMIDIOnDisonnected() {
   // TODO: Unlight blue LED.
 }
 
-void handleHoldModeOn(){
+void handleHoldModeOn() {
   Serial.println("MODE: HOLD ON");
   ChordPreset& preset = presets[currentPreset];
   const int* chord = preset.chords[currentChordIndex];
   sendChordNoteOn(chord);
 }
 
-void handleMomentaryCancel(){
+void handleMomentaryCancel() {
   sendChordNoteOff();
 }
 
-void handleTapOnHold(){
+void handleTapOnHold() {
   Serial.println("MODE: HOLD TAP");
   sendChordNoteOff();
 
-  // Step to next chord.
-  ChordPreset& preset = presets[currentPreset];
-  currentChordIndex = (currentChordIndex + 1) % preset.numChords;
+  const ChordPreset& preset = presets[currentPreset];
+  if (!isPresetChanged) {
+    // Step to next chord.
+    currentChordIndex = (currentChordIndex + 1) % preset.numChords;
+  } else {
+    isPresetChanged = false;
+  }
   const int* chord = preset.chords[currentChordIndex];
 
   sendChordNoteOn(chord);
 }
 
-void handleHoldModeOff(){
+void handleHoldModeOff() {
   Serial.println("MODE: HOLD OFF");
   sendChordNoteOff();
 }
 
-void handleMomentaryOn(){
+void handleMomentaryOn() {
   Serial.println("MODE: MOMENTARY ON");
 
-  ChordPreset& preset = presets[currentPreset];
+  const ChordPreset& preset = presets[currentPreset];
   const int* chord = preset.chords[currentChordIndex];
   sendChordNoteOn(chord);
 }
 
-void handleMomentaryOff(){
+void handleMomentaryOff() {
   Serial.println("MODE: MOMENTARY OFF");
   sendChordNoteOff();
 
   // Step to next chord.
-  ChordPreset& preset = presets[currentPreset];
+  const ChordPreset& preset = presets[currentPreset];
   currentChordIndex = (currentChordIndex + 1) % preset.numChords;
 }
 
 void setup() {
   Serial.begin(9600);
-  
+
   // Buttons, switches and encoder.
   presetButton.begin();
   encoderButton.begin();
@@ -172,7 +178,7 @@ void loop() {
 
     Serial.print("Transpose: ");
     Serial.println(transpose);
-    drawStatusScreen();
+    stateChanged = true;
   }
 
   encoderButton.read();
@@ -189,7 +195,7 @@ void loop() {
     Serial.println("Encoder Button: Released(Short Press)");
     // Reset transpose.
     transpose = 0;
-    drawStatusScreen();
+    stateChanged = true;
   }
   if (!isEncoderButtonLongPressed) {
     if (encoderButton.isPressed() && (millis() - encoderButtonLastPressedAt > ENCODER_BUTTON_LONG_PRESS_THRESHOLD)) {
@@ -197,23 +203,29 @@ void loop() {
       // Toggle Root-Only Mode
       isRootOnlyMode = !isRootOnlyMode;
       isEncoderButtonLongPressed = true;
-      drawStatusScreen();
+      stateChanged = true;
     }
   }
 
   // Foot switch.
   footSwitch.update();
-  
+
   // Change presets.
   presetButton.read();
   if (presetButton.wasPressed()) {
     currentPreset = (currentPreset + 1) % (sizeof(presets) / sizeof(presets[0]));
     currentChordIndex = 0;
-    drawStatusScreen();
+    stateChanged = true;
 
-    // fix preset index when switching in hold mode
-    if(footSwitch.getMode() == MODE_HOLD){
-      currentChordIndex--;
+    // Ignore code index increment when changing preset in hold mode
+    if (footSwitch.getMode() == MODE_HOLD) {
+      isPresetChanged = true;
     }
+  }
+
+  // Update display
+  if(stateChanged){
+    drawStatusScreen();
+    stateChanged = false;
   }
 }
