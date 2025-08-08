@@ -13,7 +13,7 @@ void OledDisplayManager::begin() {
   display.display();
 }
 
-void OledDisplayManager::updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int transpose) {
+void OledDisplayManager::updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int transpose, bool isRootOnlyMode) {
   display.clear();
 
   display.setFont(ArialMT_Plain_10);
@@ -23,13 +23,16 @@ void OledDisplayManager::updateDisplay(const char* presetName, int currentChordI
   // Display keyboard
   drawKeyboard(activeNotes, noteCount);
 
-  // fix preset index when switching in hold mode
-  int index = currentChordIndex < 0 ? 0 : currentChordIndex;
-
   // Display code index
-  String codeIndexText = String(index + 1) + " / " + String(numChords);
+  String codeIndexText = String(currentChordIndex + 1) + " / " + String(numChords);
   display.setTextAlignment(TEXT_ALIGN_LEFT);
   display.drawString(0, 54, codeIndexText);
+
+  // Display Root-Only Mode
+  if( isRootOnlyMode ){
+    display.setTextAlignment(TEXT_ALIGN_CENTER);
+    display.drawString(64, 54, "ROOT-ONLY");
+  }
 
   // Display transpose
   String transposeText = (transpose > 0 ? "+" : "") + String(transpose);

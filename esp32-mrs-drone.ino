@@ -11,18 +11,23 @@
 
 // Pin Definitions.
 // Safe GPIO pins for switch/button input on ESP32:
-// 4, 5, 13, 14, 16, 17, 25, 26, 27, 32, 33
+// 2, 4, 5, 13, 14, 15, 16, 17, 18, 19, 21, 23, 24, 25, 26, 27, 32, 33
 const int PIN_FOOTSWITCH = 5;
 const int PIN_PRESET_BUTTON = 4;
 const int PIN_ENCODER_S1 = 19;
 const int PIN_ENCODER_S2 = 18;
+const int PIN_ENCODER_BUTTON = 15;
 
 // Buttons, switches and encoder.
 FootSwitchManager footSwitch(PIN_FOOTSWITCH);
 Button presetButton(PIN_PRESET_BUTTON, 50);
+Button encoderButton(PIN_ENCODER_BUTTON, 50);
 
 RotaryEncoder encoder(PIN_ENCODER_S1, PIN_ENCODER_S2, RotaryEncoder::LatchMode::TWO03);
 int encoderLastPos = encoder.getPosition();
+bool isEncoderButtonLongPressed = false;
+unsigned long encoderButtonLastPressedAt = 0;
+const unsigned long ENCODER_BUTTON_LONG_PRESS_THRESHOLD = 200;
 
 // OLED.
 OledDisplayManager oled;
@@ -36,12 +41,23 @@ int currentChordIndex = 0;
 int transpose = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
+bool isRootOnlyMode = false;
+bool isPresetChanged = false;
 
 void drawStatusScreen() {
-  oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, transpose);
+  oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, transpose, isRootOnlyMode);
 }
 
 void sendChordNoteOn(const int* chord) {
+  if (isRootOnlyMode) {
+    activeNoteCount = 1;
+    int note = chord[0] + transpose;
+    MIDI.sendNoteOn(note, 127, MIDI_CH);
+    activeNotes[0] = note;
+    drawStatusScreen();
+    return;
+  }
+
   activeNoteCount = 0;
   for (int i = 0; i < NOTES_PER_CHORD; i++) {
     int note = chord[i];
@@ -123,6 +139,7 @@ void setup() {
   
   // Buttons, switches and encoder.
   presetButton.begin();
+  encoderButton.begin();
   encoder.setPosition(0);
 
   footSwitch.begin();
@@ -156,6 +173,32 @@ void loop() {
     Serial.print("Transpose: ");
     Serial.println(transpose);
     drawStatusScreen();
+  }
+
+  encoderButton.read();
+  if (encoderButton.wasPressed()) {
+    unsigned long now = millis();
+    encoderButtonLastPressedAt = now;
+    Serial.println("Encoder Button: Pressed");
+  }
+  if (encoderButton.wasReleased()) {
+    if (isEncoderButtonLongPressed) {
+      isEncoderButtonLongPressed = false;
+      return;
+    }
+    Serial.println("Encoder Button: Released(Short Press)");
+    // Reset transpose.
+    transpose = 0;
+    drawStatusScreen();
+  }
+  if (!isEncoderButtonLongPressed) {
+    if (encoderButton.isPressed() && (millis() - encoderButtonLastPressedAt > ENCODER_BUTTON_LONG_PRESS_THRESHOLD)) {
+      Serial.println("Encoder Button: Released(Long Press)");
+      // Toggle Root-Only Mode
+      isRootOnlyMode = !isRootOnlyMode;
+      isEncoderButtonLongPressed = true;
+      drawStatusScreen();
+    }
   }
 
   // Foot switch.
