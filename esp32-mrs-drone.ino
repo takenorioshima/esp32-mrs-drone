@@ -14,6 +14,8 @@
 // 2, 4, 5, 13, 14, 15, 16, 17, 18, 19, 21, 23, 24, 25, 26, 27, 32, 33
 const int PIN_FOOTSWITCH = 5;
 const int PIN_PRESET_BUTTON = 4;
+const int PIN_OCTAVE_DOWN_BUTTON = 25;
+const int PIN_OCTAVE_UP_BUTTON = 26;
 const int PIN_ENCODER_S1 = 19;
 const int PIN_ENCODER_S2 = 18;
 const int PIN_ENCODER_BUTTON = 15;
@@ -21,6 +23,8 @@ const int PIN_ENCODER_BUTTON = 15;
 // Buttons, switches and encoder.
 FootSwitchManager footSwitch(PIN_FOOTSWITCH);
 Button presetButton(PIN_PRESET_BUTTON, 50);
+Button octaveDownButton(PIN_OCTAVE_DOWN_BUTTON, 50);
+Button octaveUpButton(PIN_OCTAVE_UP_BUTTON, 50);
 Button encoderButton(PIN_ENCODER_BUTTON, 50);
 
 RotaryEncoder encoder(PIN_ENCODER_S1, PIN_ENCODER_S2, RotaryEncoder::LatchMode::TWO03);
@@ -39,6 +43,7 @@ BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
 int currentPreset = 0;
 int currentChordIndex = 0;
 int transpose = 0;
+int octave = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
 bool isRootOnlyMode = false;
@@ -47,13 +52,13 @@ bool isPresetChanged = false;
 bool stateChanged = false;
 
 void drawStatusScreen() {
-  oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, transpose, isRootOnlyMode);
+  oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, octave, transpose, isRootOnlyMode);
 }
 
 void sendChordNoteOn(const int* chord) {
   if (isRootOnlyMode) {
     activeNoteCount = 1;
-    int note = chord[0] + transpose;
+    int note = chord[0] + (octave * 12) + transpose;
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[0] = note;
     stateChanged = true;
@@ -64,7 +69,7 @@ void sendChordNoteOn(const int* chord) {
   for (int i = 0; i < NOTES_PER_CHORD; i++) {
     int note = chord[i];
     if (note == -1) continue;
-    note += transpose;
+    note += (octave * 12) + transpose;
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[activeNoteCount++] = note;
   }
@@ -133,6 +138,8 @@ void setup() {
 
   // Buttons, switches and encoder.
   presetButton.begin();
+  octaveDownButton.begin();
+  octaveUpButton.begin();
   encoderButton.begin();
   encoder.setPosition(0);
 
@@ -169,6 +176,7 @@ void loop() {
     stateChanged = true;
   }
 
+  // Encoder button
   encoderButton.read();
   if (encoderButton.wasPressed()) {
     unsigned long now = millis();
@@ -197,6 +205,20 @@ void loop() {
 
   // Foot switch.
   footSwitch.update();
+
+  // Octave down|up button
+  octaveDownButton.read();
+  if (octaveDownButton.wasPressed()) {
+    if (octave <= -2) return;
+    octave--;
+    stateChanged = true;
+  }
+  octaveUpButton.read();
+  if (octaveUpButton.wasPressed()) {
+    if (octave >= 2) return;
+    octave++;
+    stateChanged = true;
+  }
 
   // Change presets.
   presetButton.read();
