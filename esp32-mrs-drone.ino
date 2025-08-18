@@ -19,6 +19,8 @@ const int PIN_OCTAVE_UP_BUTTON = 26;
 const int PIN_ENCODER_S1 = 19;
 const int PIN_ENCODER_S2 = 18;
 const int PIN_ENCODER_BUTTON = 15;
+const int MIDI_TX = 17;
+const int MIDI_RX = 16;
 
 // Buttons, switches and encoder.
 FootSwitchManager footSwitch(PIN_FOOTSWITCH);
@@ -38,7 +40,8 @@ OledDisplayManager oled;
 
 // MIDI.
 const int MIDI_CH = 1;
-BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
+MIDI_CREATE_INSTANCE(HardwareSerial, Serial2, MIDI)
+BLEMIDI_CREATE_INSTANCE("MRS. DRONE", MIDI_BLE);
 
 int currentPreset = 0;
 int currentChordIndex = 0;
@@ -59,6 +62,7 @@ void sendChordNoteOn(const int* chord) {
   if (isRootOnlyMode) {
     activeNoteCount = 1;
     int note = chord[0] + (octave * 12) + transpose;
+    MIDI_BLE.sendNoteOn(note, 127, MIDI_CH);
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[0] = note;
     stateChanged = true;
@@ -70,6 +74,7 @@ void sendChordNoteOn(const int* chord) {
     int note = chord[i];
     if (note == -1) continue;
     note += (octave * 12) + transpose;
+    MIDI_BLE.sendNoteOn(note, 127, MIDI_CH);
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[activeNoteCount++] = note;
   }
@@ -78,6 +83,7 @@ void sendChordNoteOn(const int* chord) {
 
 void sendChordNoteOff() {
   for (int i = 0; i < activeNoteCount; i++) {
+    MIDI_BLE.sendNoteOff(activeNotes[i], 0, MIDI_CH);
     MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
   }
   // Reset
@@ -151,10 +157,13 @@ void setup() {
   footSwitch.onMomentaryEndCallback(handleMomentaryOff);
 
   // MIDI
-  BLEMIDI.setHandleConnected(handleBLEMIDIConnected);
-  BLEMIDI.setHandleDisconnected(handleBLEMIDIOnDisonnected);
+  Serial2.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX);
   MIDI.begin();
 
+  MIDI_BLE.begin();
+  BLEMIDI_BLE.setHandleConnected(handleBLEMIDIConnected); // Ref: https://github.com/lathoub/Arduino-BLE-MIDI/issues/76
+  BLEMIDI_BLE.setHandleDisconnected(handleBLEMIDIDisconnected);
+  
   // OLED
   oled.begin();
   oled.showSplashScreen();
