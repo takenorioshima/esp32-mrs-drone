@@ -12,6 +12,7 @@
 // Pin Definitions.
 // Safe GPIO pins for switch/button input on ESP32:
 // 2, 4, 5, 13, 14, 15, 16, 17, 18, 19, 21, 23, 24, 25, 26, 27, 32, 33
+const int PIN_BLE_CONNECTION_LED = 2;
 const int PIN_FOOTSWITCH = 5;
 const int PIN_PRESET_DOWN_BUTTON = 4;
 const int PIN_PRESET_UP_BUTTON = 23;
@@ -97,11 +98,11 @@ void sendChordNoteOff() {
 }
 
 void handleBLEMIDIConnected() {
-  // TODO: Light up blue LED.
+  digitalWrite(PIN_BLE_CONNECTION_LED, HIGH);
 }
 
-void handleBLEMIDIOnDisonnected() {
-  // TODO: Unlight blue LED.
+void handleBLEMIDIDisconnected() {
+  digitalWrite(PIN_BLE_CONNECTION_LED, LOW);
 }
 
 void handleHoldModeOn() {
@@ -171,6 +172,10 @@ void setup() {
   oled.begin();
   oled.showSplashScreen();
   drawStatusScreen();
+
+  // Status LEDs
+  pinMode(PIN_BLE_CONNECTION_LED, OUTPUT);
+  digitalWrite(PIN_BLE_CONNECTION_LED, LOW);
 }
 
 void loop() {
