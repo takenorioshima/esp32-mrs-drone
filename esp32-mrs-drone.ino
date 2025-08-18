@@ -13,18 +13,20 @@
 // Safe GPIO pins for switch/button input on ESP32:
 // 2, 4, 5, 13, 14, 15, 16, 17, 18, 19, 21, 23, 24, 25, 26, 27, 32, 33
 const int PIN_FOOTSWITCH = 5;
-const int PIN_PRESET_BUTTON = 4;
-const int PIN_OCTAVE_DOWN_BUTTON = 25;
-const int PIN_OCTAVE_UP_BUTTON = 26;
-const int PIN_ENCODER_S1 = 19;
-const int PIN_ENCODER_S2 = 18;
+const int PIN_PRESET_DOWN_BUTTON = 4;
+const int PIN_PRESET_UP_BUTTON = 23;
+const int PIN_OCTAVE_DOWN_BUTTON = 26;
+const int PIN_OCTAVE_UP_BUTTON = 25;
+const int PIN_ENCODER_S1 = 18;
+const int PIN_ENCODER_S2 = 19;
 const int PIN_ENCODER_BUTTON = 15;
 const int MIDI_TX = 17;
 const int MIDI_RX = 16;
 
 // Buttons, switches and encoder.
 FootSwitchManager footSwitch(PIN_FOOTSWITCH);
-Button presetButton(PIN_PRESET_BUTTON, 50);
+Button presetDownButton(PIN_PRESET_DOWN_BUTTON, 50);
+Button presetUpButton(PIN_PRESET_UP_BUTTON, 50);
 Button octaveDownButton(PIN_OCTAVE_DOWN_BUTTON, 50);
 Button octaveUpButton(PIN_OCTAVE_UP_BUTTON, 50);
 Button encoderButton(PIN_ENCODER_BUTTON, 50);
@@ -44,9 +46,11 @@ MIDI_CREATE_INSTANCE(HardwareSerial, Serial2, MIDI)
 BLEMIDI_CREATE_INSTANCE("MRS. DRONE", MIDI_BLE);
 
 int currentPreset = 0;
-int currentChordIndex = 0;
+int numPresets = sizeof(presets) / sizeof(presets[0]);
+
 int transpose = 0;
 int octave = 0;
+int currentChordIndex = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
 bool isRootOnlyMode = false;
@@ -66,9 +70,7 @@ void sendChordNoteOn(const int* chord) {
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[0] = note;
     stateChanged = true;
-    return;
   }
-
   activeNoteCount = 0;
   for (int i = 0; i < NOTES_PER_CHORD; i++) {
     int note = chord[i];
@@ -143,7 +145,8 @@ void setup() {
   Serial.begin(9600);
 
   // Buttons, switches and encoder.
-  presetButton.begin();
+  presetDownButton.begin();
+  presetUpButton.begin();
   octaveDownButton.begin();
   octaveUpButton.begin();
   encoderButton.begin();
@@ -230,9 +233,20 @@ void loop() {
   }
 
   // Change presets.
-  presetButton.read();
-  if (presetButton.wasPressed()) {
-    currentPreset = (currentPreset + 1) % (sizeof(presets) / sizeof(presets[0]));
+  presetDownButton.read();
+  if (presetDownButton.wasPressed()) {
+    currentPreset = (currentPreset - 1 + numPresets) % numPresets;
+    currentChordIndex = 0;
+    stateChanged = true;
+
+    // Ignore code index increment when changing preset in hold mode
+    if (footSwitch.getMode() == MODE_HOLD) {
+      isPresetChanged = true;
+    }
+  }
+  presetUpButton.read();
+  if (presetUpButton.wasPressed()) {
+    currentPreset = (currentPreset + 1) % numPresets;
     currentChordIndex = 0;
     stateChanged = true;
 
