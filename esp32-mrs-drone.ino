@@ -4,6 +4,7 @@
 
 #include <JC_Button.h>      // Ref: https://github.com/JChristensen/JC_Button
 #include <RotaryEncoder.h>  // Ref: https://github.com/mathertel/RotaryEncoder
+#include <jled.h>           // Ref: https://github.com/jandelgado/jled
 
 #include "FootSwitchManager.h"
 #include "OledDisplayManager.h"
@@ -13,6 +14,7 @@
 // Safe GPIO pins for switch/button input on ESP32:
 // 2, 4, 5, 13, 14, 15, 16, 17, 18, 19, 21, 23, 24, 25, 26, 27, 32, 33
 const int PIN_BLE_CONNECTION_LED = 2;
+const int PIN_NOTE_ON_LED = 13;
 const int PIN_FOOTSWITCH = 5;
 const int PIN_PRESET_DOWN_BUTTON = 4;
 const int PIN_PRESET_UP_BUTTON = 23;
@@ -37,6 +39,9 @@ int encoderLastPos = encoder.getPosition();
 bool isEncoderButtonLongPressed = false;
 unsigned long encoderButtonLastPressedAt = 0;
 const unsigned long ENCODER_BUTTON_LONG_PRESS_THRESHOLD = 200;
+
+// LED.
+JLed noteOnLed = JLed(PIN_NOTE_ON_LED);
 
 // OLED.
 OledDisplayManager oled;
@@ -81,6 +86,7 @@ void sendChordNoteOn(const int* chord) {
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[activeNoteCount++] = note;
   }
+  noteOnLed = JLed(PIN_NOTE_ON_LED).Breathe(500).Forever();
   stateChanged = true;
 }
 
@@ -93,6 +99,7 @@ void sendChordNoteOff() {
   for (int i = 0; i < NOTES_PER_CHORD; i++) {
     activeNotes[i] = -1;
   }
+  noteOnLed = JLed(PIN_NOTE_ON_LED).Off();
   activeNoteCount = 0;
   stateChanged = true;
 }
@@ -260,6 +267,9 @@ void loop() {
       isPresetChanged = true;
     }
   }
+
+  // Update LED
+  noteOnLed.Update();
 
   // Update display
   if (stateChanged) {
