@@ -76,17 +76,18 @@ void sendChordNoteOn(const int* chord) {
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[0] = note;
     stateChanged = true;
+  } else {
+    activeNoteCount = 0;
+    for (int i = 0; i < NOTES_PER_CHORD; i++) {
+      int note = chord[i];
+      if (note == -1) continue;
+      note += (octave * 12) + transpose;
+      MIDI_BLE.sendNoteOn(note, 127, MIDI_CH);
+      MIDI.sendNoteOn(note, 127, MIDI_CH);
+      activeNotes[activeNoteCount++] = note;
+    }
   }
-  activeNoteCount = 0;
-  for (int i = 0; i < NOTES_PER_CHORD; i++) {
-    int note = chord[i];
-    if (note == -1) continue;
-    note += (octave * 12) + transpose;
-    MIDI_BLE.sendNoteOn(note, 127, MIDI_CH);
-    MIDI.sendNoteOn(note, 127, MIDI_CH);
-    activeNotes[activeNoteCount++] = note;
-  }
-  noteOnLed = JLed(PIN_NOTE_ON_LED).Breathe(500).Forever();
+  // noteOnLed = JLed(PIN_NOTE_ON_LED).Breathe(500).Forever();
   stateChanged = true;
 }
 
