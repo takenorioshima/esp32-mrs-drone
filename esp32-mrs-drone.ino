@@ -45,6 +45,8 @@ JLed noteOnLed = JLed(PIN_NOTE_ON_LED);
 
 // OLED.
 OledDisplayManager oled;
+unsigned long oledLastUpdatedAt = 0;
+const unsigned long oledUpdateInterval = 1000 / 30; // = 30Hz.
 
 // MIDI.
 const int MIDI_CH = 1;
@@ -65,7 +67,11 @@ bool isPresetChanged = false;
 bool stateChanged = false;
 
 void drawStatusScreen() {
-  oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, octave, transpose, isRootOnlyMode);
+  unsigned long now = millis();
+  if( now - oledLastUpdatedAt > oledUpdateInterval){
+    oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, octave, transpose, isRootOnlyMode);
+    oledLastUpdatedAt = now;
+  }
 }
 
 void sendChordNoteOn(const int* chord) {
