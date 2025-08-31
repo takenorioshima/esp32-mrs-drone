@@ -63,6 +63,7 @@ int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
 bool isRootOnlyMode = false;
 bool isPresetChanged = false;
+bool isBreatheLed = false;
 
 bool stateChanged = false;
 
@@ -93,7 +94,10 @@ void sendChordNoteOn(const int* chord) {
       activeNotes[activeNoteCount++] = note;
     }
   }
-  // noteOnLed = JLed(PIN_NOTE_ON_LED).Breathe(500).Forever();
+  if(!isBreatheLed){
+    noteOnLed = JLed(PIN_NOTE_ON_LED).Breathe(1000).Forever();
+    isBreatheLed = true;
+  }
   stateChanged = true;
 }
 
@@ -107,6 +111,7 @@ void sendChordNoteOff() {
     activeNotes[i] = -1;
   }
   noteOnLed = JLed(PIN_NOTE_ON_LED).Off();
+  isBreatheLed = false;
   activeNoteCount = 0;
   stateChanged = true;
 }
