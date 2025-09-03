@@ -159,9 +159,13 @@ void handleMomentaryOff() {
   Serial.println("MODE: MOMENTARY OFF");
   sendChordNoteOff();
 
-  // Step to next chord.
   const ChordPreset& preset = presets[currentPreset];
-  currentChordIndex = (currentChordIndex + 1) % preset.numChords;
+  if (!isPresetChanged) {
+    // Step to next chord.
+    currentChordIndex = (currentChordIndex + 1) % preset.numChords;
+  } else {
+    isPresetChanged = false;
+  }
 }
 
 void setup() {
@@ -266,8 +270,8 @@ void loop() {
     currentChordIndex = 0;
     stateChanged = true;
 
-    // Ignore code index increment when changing preset in hold mode
-    if (footSwitch.getMode() == MODE_HOLD) {
+    // Ignore code index increment when changing preset in hold/momentary mode
+    if (footSwitch.getMode() == MODE_HOLD || footSwitch.getMode() == MODE_MOMENTARY) {
       isPresetChanged = true;
     }
   }
@@ -277,8 +281,8 @@ void loop() {
     currentChordIndex = 0;
     stateChanged = true;
 
-    // Ignore code index increment when changing preset in hold mode
-    if (footSwitch.getMode() == MODE_HOLD) {
+    // Ignore code index increment when changing preset in hold/momentary mode
+    if (footSwitch.getMode() == MODE_HOLD || footSwitch.getMode() == MODE_MOMENTARY) {
       isPresetChanged = true;
     }
   }
