@@ -46,7 +46,7 @@ JLed noteOnLed = JLed(PIN_NOTE_ON_LED);
 // OLED.
 OledDisplayManager oled;
 unsigned long oledLastUpdatedAt = 0;
-const unsigned long oledUpdateInterval = 1000 / 30; // = 30Hz.
+const unsigned long oledUpdateInterval = 1000 / 30;  // = 30Hz.
 
 // MIDI.
 const int MIDI_CH = 1;
@@ -69,7 +69,7 @@ bool stateChanged = false;
 
 void drawStatusScreen() {
   unsigned long now = millis();
-  if( now - oledLastUpdatedAt > oledUpdateInterval){
+  if (now - oledLastUpdatedAt > oledUpdateInterval) {
     oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, octave, transpose, isRootOnlyMode);
     oledLastUpdatedAt = now;
   }
@@ -83,6 +83,7 @@ void sendChordNoteOn(const int* chord) {
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[0] = note;
     stateChanged = true;
+    Serial.println("send note on - root");
   } else {
     activeNoteCount = 0;
     for (int i = 0; i < NOTES_PER_CHORD; i++) {
@@ -92,9 +93,10 @@ void sendChordNoteOn(const int* chord) {
       MIDI_BLE.sendNoteOn(note, 127, MIDI_CH);
       MIDI.sendNoteOn(note, 127, MIDI_CH);
       activeNotes[activeNoteCount++] = note;
+      Serial.println("send note on");
     }
   }
-  if(!isBreatheLed){
+  if (!isBreatheLed) {
     noteOnLed = JLed(PIN_NOTE_ON_LED).Breathe(1000).Forever();
     isBreatheLed = true;
   }
@@ -105,6 +107,7 @@ void sendChordNoteOff() {
   for (int i = 0; i < activeNoteCount; i++) {
     MIDI_BLE.sendNoteOff(activeNotes[i], 0, MIDI_CH);
     MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
+    Serial.println("send note off");
   }
   // Reset
   for (int i = 0; i < NOTES_PER_CHORD; i++) {
@@ -162,7 +165,7 @@ void handleMomentaryOff() {
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // Buttons, switches and encoder.
   presetDownButton.begin();
@@ -184,9 +187,9 @@ void setup() {
   MIDI.begin();
 
   MIDI_BLE.begin();
-  BLEMIDI_BLE.setHandleConnected(handleBLEMIDIConnected); // Ref: https://github.com/lathoub/Arduino-BLE-MIDI/issues/76
+  BLEMIDI_BLE.setHandleConnected(handleBLEMIDIConnected);  // Ref: https://github.com/lathoub/Arduino-BLE-MIDI/issues/76
   BLEMIDI_BLE.setHandleDisconnected(handleBLEMIDIDisconnected);
-  
+
   // OLED
   oled.begin();
   oled.showSplashScreen();
