@@ -21,7 +21,7 @@ void OledDisplayManager::showSplashScreen() {
 }
 
 
-void OledDisplayManager::updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int octave, int transpose, bool isRootOnlyMode) {
+void OledDisplayManager::updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int octave, int transpose, bool isRootOnlyMode, bool isRootOctaveDownMode) {
   display.clear();
 
   display.setFont(ArialMT_Plain_10);
@@ -39,7 +39,12 @@ void OledDisplayManager::updateDisplay(const char* presetName, int currentChordI
   // Display Root-Only Mode
   if( isRootOnlyMode ){
     display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.drawString(64, 54, "ROOT-ONLY");
+    display.drawString(64, 54, "ROOT ONLY");
+  }
+
+  if( isRootOctaveDownMode ){
+    display.setTextAlignment(TEXT_ALIGN_CENTER);
+    display.drawString(64, 54, "ROOT DOWN");
   }
 
   // Display octave + transpose

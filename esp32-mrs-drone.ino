@@ -62,6 +62,7 @@ int currentChordIndex = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
 bool isRootOnlyMode = false;
+bool isRootOctaveDownMode = false;
 bool isPresetChanged = false;
 bool isBreatheLed = false;
 
@@ -70,7 +71,7 @@ bool stateChanged = false;
 void drawStatusScreen() {
   unsigned long now = millis();
   if (now - oledLastUpdatedAt > oledUpdateInterval) {
-    oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, octave, transpose, isRootOnlyMode);
+    oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, octave, transpose, isRootOnlyMode, isRootOctaveDownMode);
     oledLastUpdatedAt = now;
   }
 }
@@ -90,6 +91,9 @@ void sendChordNoteOn(const int* chord) {
       int note = chord[i];
       if (note == -1) continue;
       note += (octave * 12) + transpose;
+      if (isRootOctaveDownMode && i == 0) {
+        note -= 12;
+      }
       MIDI_BLE.sendNoteOn(note, 127, MIDI_CH);
       MIDI.sendNoteOn(note, 127, MIDI_CH);
       activeNotes[activeNoteCount++] = note;
@@ -239,8 +243,16 @@ void loop() {
   if (!isEncoderButtonLongPressed) {
     if (encoderButton.isPressed() && (millis() - encoderButtonLastPressedAt > ENCODER_BUTTON_LONG_PRESS_THRESHOLD)) {
       Serial.println("Encoder Button: Released(Long Press)");
-      // Toggle Root-Only Mode
-      isRootOnlyMode = !isRootOnlyMode;
+      // Switch Mode
+      if (isRootOctaveDownMode && !isRootOnlyMode) {
+        isRootOctaveDownMode = false;
+        isRootOnlyMode = false;
+      } else if (!isRootOnlyMode) {
+        isRootOnlyMode = true;
+      } else if (isRootOnlyMode) {
+        isRootOctaveDownMode = true;
+        isRootOnlyMode = false;
+      }
       isEncoderButtonLongPressed = true;
       stateChanged = true;
     }

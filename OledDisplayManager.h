@@ -9,7 +9,7 @@ public:
   OledDisplayManager();
   void begin();
   void showSplashScreen();
-  void updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int octave, int transpose, bool isRootOnlyMode);
+  void updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int octave, int transpose, bool isRootOnlyMode, bool isRootOctaveDownMode);
 
 private:
   SSD1306Wire display;
