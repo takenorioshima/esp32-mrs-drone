@@ -26,8 +26,8 @@ And of course, it plays nice with external footswitches (hello, BOSS FS-6 👋) 
 
 ## 🛠 Hardware
 
-* ESP32-S3 board
+* ESP32 board
 * OLED display (SSD1306)
 * Rotary encoder w/ push switch
-* External footswitch (BOSS FS-6 or similar)
+* Optional: External footswitch (BOSS FS-6 or similar)
 * MIDI DIN (type B wiring)
