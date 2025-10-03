@@ -7,13 +7,21 @@ OledDisplayManager::OledDisplayManager()
 void OledDisplayManager::begin() {
   display.init();
   display.flipScreenVertically();
-  display.setFont(ArialMT_Plain_16);
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.clear();
-  display.display();
 }
 
-void OledDisplayManager::updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int transpose, bool isRootOnlyMode) {
+void OledDisplayManager::showSplashScreen() {
+  display.clear();
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.drawString(64, 15, "Mrs. Drone");
+  display.drawString(64, 30, "v1.0.0");
+  display.drawString(64, 45, "Booting...");
+  display.display();
+  delay(3000);
+}
+
+
+void OledDisplayManager::updateDisplay(const char* presetName, int currentChordIndex, int numChords, const int* activeNotes, int noteCount, int octave, int transpose, bool isRootOnlyMode, bool isRootOctaveDownMode) {
   display.clear();
 
   display.setFont(ArialMT_Plain_10);
@@ -31,13 +39,19 @@ void OledDisplayManager::updateDisplay(const char* presetName, int currentChordI
   // Display Root-Only Mode
   if( isRootOnlyMode ){
     display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.drawString(64, 54, "ROOT-ONLY");
+    display.drawString(64, 54, "ROOT ONLY");
   }
 
-  // Display transpose
+  if( isRootOctaveDownMode ){
+    display.setTextAlignment(TEXT_ALIGN_CENTER);
+    display.drawString(64, 54, "ROOT DOWN");
+  }
+
+  // Display octave + transpose
+  String octaveText = (octave > 0 ? "+" : "") + String(octave);
   String transposeText = (transpose > 0 ? "+" : "") + String(transpose);
   display.setTextAlignment(TEXT_ALIGN_RIGHT);
-  display.drawString(128, 54, transposeText);
+  display.drawString(128, 54, octaveText + " " + transposeText);
 
   display.display();
 }

@@ -16,8 +16,8 @@ void FootSwitchManager::update() {
     unsigned long now = millis();
 
     if (mode == MODE_HOLD) {
+      if (onHoldTap) onHoldTap();
       if (now - lastPressedAt < DOUBLE_TAP_THRESHOLD) {
-        skipNextRelease = true;
         mode = MODE_NONE;
         if (onExitHold) onExitHold();
         return;
@@ -31,8 +31,7 @@ void FootSwitchManager::update() {
   }
 
   if (button.wasReleased()) {
-    if (skipNextRelease) {
-      skipNextRelease = false;
+    if (mode == MODE_NONE) {
       return;
     }
 
@@ -40,23 +39,16 @@ void FootSwitchManager::update() {
 
     if (pressDuration < LONG_PRESS_THRESHOLD) {
       if (mode == MODE_MOMENTARY) {
-        if (onMomentaryCancel) onMomentaryCancel();
-      }
-
-      if (mode == MODE_HOLD) {
-        if (onHoldTap) onHoldTap();
-      } else {
+        if (onEnterHold) onEnterHold();
         mode = MODE_HOLD;
-        Serial.println("Calling enterHoldCallback...");
-        if (onEnterHold) {
-          onEnterHold();
-        } else {
-          Serial.println("Callback is null!");
-        }
       }
     } else {
       if (mode == MODE_MOMENTARY) {
         if (onMomentaryEnd) onMomentaryEnd();
+        mode = MODE_NONE;
+      }
+      if (mode == MODE_HOLD) {
+        if (onExitHold) onExitHold();
         mode = MODE_NONE;
       }
     }
@@ -74,10 +66,6 @@ void FootSwitchManager::onMomentaryStartCallback(void (*cb)()) {
 
 void FootSwitchManager::onMomentaryEndCallback(void (*cb)()) {
   onMomentaryEnd = cb;
-}
-
-void FootSwitchManager::onMomentaryCancelCallback(void (*cb)()) {
-  onMomentaryCancel = cb;
 }
 
 void FootSwitchManager::onEnterHoldCallback(void (*cb)()) {

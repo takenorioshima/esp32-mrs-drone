@@ -4,6 +4,7 @@
 
 #include <JC_Button.h>      // Ref: https://github.com/JChristensen/JC_Button
 #include <RotaryEncoder.h>  // Ref: https://github.com/mathertel/RotaryEncoder
+#include <jled.h>           // Ref: https://github.com/jandelgado/jled
 
 #include "FootSwitchManager.h"
 #include "OledDisplayManager.h"
@@ -12,15 +13,25 @@
 // Pin Definitions.
 // Safe GPIO pins for switch/button input on ESP32:
 // 2, 4, 5, 13, 14, 15, 16, 17, 18, 19, 21, 23, 24, 25, 26, 27, 32, 33
+const int PIN_BLE_CONNECTION_LED = 2;
+const int PIN_NOTE_ON_LED = 13;
 const int PIN_FOOTSWITCH = 5;
-const int PIN_PRESET_BUTTON = 4;
-const int PIN_ENCODER_S1 = 19;
-const int PIN_ENCODER_S2 = 18;
+const int PIN_PRESET_DOWN_BUTTON = 4;
+const int PIN_PRESET_UP_BUTTON = 23;
+const int PIN_OCTAVE_DOWN_BUTTON = 26;
+const int PIN_OCTAVE_UP_BUTTON = 25;
+const int PIN_ENCODER_S1 = 18;
+const int PIN_ENCODER_S2 = 19;
 const int PIN_ENCODER_BUTTON = 15;
+const int MIDI_TX = 17;
+const int MIDI_RX = 16;
 
 // Buttons, switches and encoder.
 FootSwitchManager footSwitch(PIN_FOOTSWITCH);
-Button presetButton(PIN_PRESET_BUTTON, 50);
+Button presetDownButton(PIN_PRESET_DOWN_BUTTON, 50);
+Button presetUpButton(PIN_PRESET_UP_BUTTON, 50);
+Button octaveDownButton(PIN_OCTAVE_DOWN_BUTTON, 50);
+Button octaveUpButton(PIN_OCTAVE_UP_BUTTON, 50);
 Button encoderButton(PIN_ENCODER_BUTTON, 50);
 
 RotaryEncoder encoder(PIN_ENCODER_S1, PIN_ENCODER_S2, RotaryEncoder::LatchMode::TWO03);
@@ -29,77 +40,104 @@ bool isEncoderButtonLongPressed = false;
 unsigned long encoderButtonLastPressedAt = 0;
 const unsigned long ENCODER_BUTTON_LONG_PRESS_THRESHOLD = 200;
 
+// LED.
+JLed noteOnLed = JLed(PIN_NOTE_ON_LED);
+
 // OLED.
 OledDisplayManager oled;
+unsigned long oledLastUpdatedAt = 0;
+const unsigned long oledUpdateInterval = 1000 / 30;  // = 30Hz.
 
 // MIDI.
 const int MIDI_CH = 1;
-BLEMIDI_CREATE_INSTANCE("BLE MIDI", MIDI);
+MIDI_CREATE_INSTANCE(HardwareSerial, Serial2, MIDI)
+BLEMIDI_CREATE_INSTANCE("MRS. DRONE", MIDI_BLE);
 
 int currentPreset = 0;
-int currentChordIndex = 0;
+int numPresets = sizeof(presets) / sizeof(presets[0]);
+
 int transpose = 0;
+int octave = 0;
+int currentChordIndex = 0;
 int activeNotes[NOTES_PER_CHORD];
 int activeNoteCount = 0;
 bool isRootOnlyMode = false;
+bool isRootOctaveDownMode = false;
 bool isPresetChanged = false;
+bool isBreatheLed = false;
 
 bool stateChanged = false;
 
 void drawStatusScreen() {
-  oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, transpose, isRootOnlyMode);
+  unsigned long now = millis();
+  if (now - oledLastUpdatedAt > oledUpdateInterval) {
+    oled.updateDisplay(presets[currentPreset].name, currentChordIndex, presets[currentPreset].numChords, activeNotes, activeNoteCount, octave, transpose, isRootOnlyMode, isRootOctaveDownMode);
+    oledLastUpdatedAt = now;
+  }
 }
 
 void sendChordNoteOn(const int* chord) {
   if (isRootOnlyMode) {
     activeNoteCount = 1;
-    int note = chord[0] + transpose;
+    int note = chord[0] + (octave * 12) + transpose;
+    MIDI_BLE.sendNoteOn(note, 127, MIDI_CH);
     MIDI.sendNoteOn(note, 127, MIDI_CH);
     activeNotes[0] = note;
     stateChanged = true;
-    return;
+    Serial.println("send note on - root");
+  } else {
+    activeNoteCount = 0;
+    for (int i = 0; i < NOTES_PER_CHORD; i++) {
+      int note = chord[i];
+      if (note == -1) continue;
+      note += (octave * 12) + transpose;
+      if (isRootOctaveDownMode && i == 0) {
+        note -= 12;
+      }
+      MIDI_BLE.sendNoteOn(note, 127, MIDI_CH);
+      MIDI.sendNoteOn(note, 127, MIDI_CH);
+      activeNotes[activeNoteCount++] = note;
+      Serial.println("send note on");
+    }
   }
-
-  activeNoteCount = 0;
-  for (int i = 0; i < NOTES_PER_CHORD; i++) {
-    int note = chord[i];
-    if (note == -1) continue;
-    note += transpose;
-    MIDI.sendNoteOn(note, 127, MIDI_CH);
-    activeNotes[activeNoteCount++] = note;
+  if (!isBreatheLed) {
+    noteOnLed = JLed(PIN_NOTE_ON_LED).Breathe(1000).Forever();
+    isBreatheLed = true;
   }
   stateChanged = true;
 }
 
 void sendChordNoteOff() {
   for (int i = 0; i < activeNoteCount; i++) {
+    MIDI_BLE.sendNoteOff(activeNotes[i], 0, MIDI_CH);
     MIDI.sendNoteOff(activeNotes[i], 0, MIDI_CH);
+    Serial.println("send note off");
   }
   // Reset
   for (int i = 0; i < NOTES_PER_CHORD; i++) {
     activeNotes[i] = -1;
   }
+
+  // Send CC #120 (All note off)
+  MIDI_BLE.sendControlChange(120, 0, MIDI_CH);
+  MIDI.sendControlChange(120, 0, MIDI_CH);
+
+  noteOnLed = JLed(PIN_NOTE_ON_LED).Off();
+  isBreatheLed = false;
   activeNoteCount = 0;
   stateChanged = true;
 }
 
 void handleBLEMIDIConnected() {
-  // TODO: Light up blue LED.
+  digitalWrite(PIN_BLE_CONNECTION_LED, HIGH);
 }
 
-void handleBLEMIDIOnDisonnected() {
-  // TODO: Unlight blue LED.
+void handleBLEMIDIDisconnected() {
+  digitalWrite(PIN_BLE_CONNECTION_LED, LOW);
 }
 
 void handleHoldModeOn() {
   Serial.println("MODE: HOLD ON");
-  ChordPreset& preset = presets[currentPreset];
-  const int* chord = preset.chords[currentChordIndex];
-  sendChordNoteOn(chord);
-}
-
-void handleMomentaryCancel() {
-  sendChordNoteOff();
 }
 
 void handleTapOnHold() {
@@ -118,11 +156,6 @@ void handleTapOnHold() {
   sendChordNoteOn(chord);
 }
 
-void handleHoldModeOff() {
-  Serial.println("MODE: HOLD OFF");
-  sendChordNoteOff();
-}
-
 void handleMomentaryOn() {
   Serial.println("MODE: MOMENTARY ON");
 
@@ -135,35 +168,49 @@ void handleMomentaryOff() {
   Serial.println("MODE: MOMENTARY OFF");
   sendChordNoteOff();
 
-  // Step to next chord.
   const ChordPreset& preset = presets[currentPreset];
-  currentChordIndex = (currentChordIndex + 1) % preset.numChords;
+  if (!isPresetChanged) {
+    // Step to next chord.
+    currentChordIndex = (currentChordIndex + 1) % preset.numChords;
+  } else {
+    isPresetChanged = false;
+  }
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // Buttons, switches and encoder.
-  presetButton.begin();
+  presetDownButton.begin();
+  presetUpButton.begin();
+  octaveDownButton.begin();
+  octaveUpButton.begin();
   encoderButton.begin();
   encoder.setPosition(0);
 
   footSwitch.begin();
   footSwitch.onEnterHoldCallback(handleHoldModeOn);
   footSwitch.onHoldTapCallback(handleTapOnHold);
-  footSwitch.onExitHoldCallback(handleHoldModeOff);
+  footSwitch.onExitHoldCallback(handleMomentaryOff);
   footSwitch.onMomentaryStartCallback(handleMomentaryOn);
-  footSwitch.onMomentaryCancelCallback(handleMomentaryCancel);
   footSwitch.onMomentaryEndCallback(handleMomentaryOff);
 
   // MIDI
-  BLEMIDI.setHandleConnected(handleBLEMIDIConnected);
-  BLEMIDI.setHandleDisconnected(handleBLEMIDIOnDisonnected);
+  Serial2.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX);
   MIDI.begin();
+
+  MIDI_BLE.begin();
+  BLEMIDI_BLE.setHandleConnected(handleBLEMIDIConnected);  // Ref: https://github.com/lathoub/Arduino-BLE-MIDI/issues/76
+  BLEMIDI_BLE.setHandleDisconnected(handleBLEMIDIDisconnected);
 
   // OLED
   oled.begin();
+  oled.showSplashScreen();
   drawStatusScreen();
+
+  // Status LEDs
+  pinMode(PIN_BLE_CONNECTION_LED, OUTPUT);
+  digitalWrite(PIN_BLE_CONNECTION_LED, LOW);
 }
 
 void loop() {
@@ -181,6 +228,7 @@ void loop() {
     stateChanged = true;
   }
 
+  // Encoder button
   encoderButton.read();
   if (encoderButton.wasPressed()) {
     unsigned long now = millis();
@@ -193,15 +241,23 @@ void loop() {
       return;
     }
     Serial.println("Encoder Button: Released(Short Press)");
-    // Reset transpose.
-    transpose = 0;
+    // Switch Mode
+    if (isRootOctaveDownMode && !isRootOnlyMode) {
+      isRootOctaveDownMode = false;
+      isRootOnlyMode = false;
+    } else if (!isRootOnlyMode) {
+      isRootOnlyMode = true;
+    } else if (isRootOnlyMode) {
+      isRootOctaveDownMode = true;
+      isRootOnlyMode = false;
+    }
     stateChanged = true;
   }
   if (!isEncoderButtonLongPressed) {
     if (encoderButton.isPressed() && (millis() - encoderButtonLastPressedAt > ENCODER_BUTTON_LONG_PRESS_THRESHOLD)) {
       Serial.println("Encoder Button: Released(Long Press)");
-      // Toggle Root-Only Mode
-      isRootOnlyMode = !isRootOnlyMode;
+      // Reset transpose.
+      transpose = 0;
       isEncoderButtonLongPressed = true;
       stateChanged = true;
     }
@@ -210,21 +266,49 @@ void loop() {
   // Foot switch.
   footSwitch.update();
 
+  // Octave down|up button
+  octaveDownButton.read();
+  if (octaveDownButton.wasPressed()) {
+    if (octave <= -2) return;
+    octave--;
+    stateChanged = true;
+  }
+  octaveUpButton.read();
+  if (octaveUpButton.wasPressed()) {
+    if (octave >= 2) return;
+    octave++;
+    stateChanged = true;
+  }
+
   // Change presets.
-  presetButton.read();
-  if (presetButton.wasPressed()) {
-    currentPreset = (currentPreset + 1) % (sizeof(presets) / sizeof(presets[0]));
+  presetDownButton.read();
+  if (presetDownButton.wasPressed()) {
+    currentPreset = (currentPreset - 1 + numPresets) % numPresets;
     currentChordIndex = 0;
     stateChanged = true;
 
-    // Ignore code index increment when changing preset in hold mode
-    if (footSwitch.getMode() == MODE_HOLD) {
+    // Ignore code index increment when changing preset in hold/momentary mode
+    if (footSwitch.getMode() == MODE_HOLD || footSwitch.getMode() == MODE_MOMENTARY) {
+      isPresetChanged = true;
+    }
+  }
+  presetUpButton.read();
+  if (presetUpButton.wasPressed()) {
+    currentPreset = (currentPreset + 1) % numPresets;
+    currentChordIndex = 0;
+    stateChanged = true;
+
+    // Ignore code index increment when changing preset in hold/momentary mode
+    if (footSwitch.getMode() == MODE_HOLD || footSwitch.getMode() == MODE_MOMENTARY) {
       isPresetChanged = true;
     }
   }
 
+  // Update LED
+  noteOnLed.Update();
+
   // Update display
-  if(stateChanged){
+  if (stateChanged) {
     drawStatusScreen();
     stateChanged = false;
   }
