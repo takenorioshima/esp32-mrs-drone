@@ -2,6 +2,8 @@
 
 *A chord progression machine for the modern guitarist and synth nerd.*
 
+![mrs-drone](https://github.com/user-attachments/assets/48ee0184-0b71-45c7-803a-5acfc6c97a47)
+
 MRS. DRONE is a MIDI controller that sends **preset chord progressions** straight to your gear.
 It speaks both **wired MIDI (type B)** and **BLE MIDI**, and comes with handy tricks like **semitone transpose**, **octave shift**, and quirky modes like **Root-only** and **Root-down** to keep your jams fresh.
 
