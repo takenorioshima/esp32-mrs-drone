@@ -117,6 +117,11 @@ void sendChordNoteOff() {
   for (int i = 0; i < NOTES_PER_CHORD; i++) {
     activeNotes[i] = -1;
   }
+
+  // Send CC #120 (All note off)
+  MIDI_BLE.sendControlChange(120, 0, MIDI_CH);
+  MIDI.sendControlChange(120, 0, MIDI_CH);
+
   noteOnLed = JLed(PIN_NOTE_ON_LED).Off();
   isBreatheLed = false;
   activeNoteCount = 0;
