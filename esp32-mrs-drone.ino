@@ -241,23 +241,23 @@ void loop() {
       return;
     }
     Serial.println("Encoder Button: Released(Short Press)");
-    // Reset transpose.
-    transpose = 0;
+    // Switch Mode
+    if (isRootOctaveDownMode && !isRootOnlyMode) {
+      isRootOctaveDownMode = false;
+      isRootOnlyMode = false;
+    } else if (!isRootOnlyMode) {
+      isRootOnlyMode = true;
+    } else if (isRootOnlyMode) {
+      isRootOctaveDownMode = true;
+      isRootOnlyMode = false;
+    }
     stateChanged = true;
   }
   if (!isEncoderButtonLongPressed) {
     if (encoderButton.isPressed() && (millis() - encoderButtonLastPressedAt > ENCODER_BUTTON_LONG_PRESS_THRESHOLD)) {
       Serial.println("Encoder Button: Released(Long Press)");
-      // Switch Mode
-      if (isRootOctaveDownMode && !isRootOnlyMode) {
-        isRootOctaveDownMode = false;
-        isRootOnlyMode = false;
-      } else if (!isRootOnlyMode) {
-        isRootOnlyMode = true;
-      } else if (isRootOnlyMode) {
-        isRootOctaveDownMode = true;
-        isRootOnlyMode = false;
-      }
+      // Reset transpose.
+      transpose = 0;
       isEncoderButtonLongPressed = true;
       stateChanged = true;
     }
